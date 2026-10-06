@@ -106,14 +106,14 @@ class LibraryStateTest {
         assertNull(z.await())
     }
 
-    @Test fun progressFailureKeepsPreviousMap() = runTest(StandardTestDispatcher()) {
+    @Test fun refreshProgressCallsTheSharedFetchAndSwallowsFailures() = runTest(StandardTestDispatcher()) {
+        var calls = 0
         var fail = false
-        val map = ProgressMap.from(Me("u", listOf(MediaProgress("id1", progress = 0.5, currentTime = 5.0, duration = 10.0))))
-        val s = state(progress = { if (fail) error("offline") else map })
+        val s = state(progress = { calls++; if (fail) error("offline") else ProgressMap() })
         s.refreshProgress(); advanceUntilIdle()
-        assertEquals(ProgressState.IN_PROGRESS, s.progress.stateOf("id1"))
+        assertEquals(1, calls)
         fail = true
-        s.refreshProgress(); advanceUntilIdle()
-        assertEquals(ProgressState.IN_PROGRESS, s.progress.stateOf("id1"))
+        s.refreshProgress(); advanceUntilIdle() // must not throw
+        assertEquals(2, calls)
     }
 }

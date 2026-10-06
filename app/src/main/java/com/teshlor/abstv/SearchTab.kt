@@ -119,7 +119,9 @@ class SearchViewModel(app: Application) : AndroidViewModel(app) {
     private val prefs = app.getSharedPreferences("abs", Context.MODE_PRIVATE)
     private var api: AbsApi? = null
     private var libraryId: String? = null
-    private var bound: List<Any?>? = null
+    /** The (api, library, epoch) the state was last reset for. Observable so the screen can wait for [bind] after a switch. */
+    var bound: List<Any?>? by mutableStateOf(null)
+        private set
 
     private val counter = RequestCounter()
     private val debouncer = Debouncer(viewModelScope, SEARCH_DEBOUNCE_MS)
@@ -293,6 +295,11 @@ fun SearchTab(vm: AppViewModel) {
     val sv = remember(activity) { ViewModelProvider(activity)[SearchViewModel::class.java] }
     // State writes belong in an effect, not in composition (bind is idempotent per api/library/epoch).
     LaunchedEffect(vm.api, vm.selectedLibrary?.id, vm.stateEpoch) { sv.bind(vm.api, vm.selectedLibrary?.id, vm.stateEpoch) }
+    // After a library switch or re-login show nothing until bind() has reset the query, so the old one never flashes.
+    if (sv.bound != listOf(vm.api, vm.selectedLibrary?.id, vm.stateEpoch)) {
+        Box(Modifier.fillMaxSize())
+        return
+    }
     val progress = vm.progress
 
     val keyboard = LocalSoftwareKeyboardController.current

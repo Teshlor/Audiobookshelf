@@ -67,6 +67,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             api = AbsApi(server, authSession)
             stack.reset(Screen.Browse(Tab.HOME))
             loadHome()
+            loadSortingSettings(api!!)
             // Installs from before the nav work never stored a username; backfill it once for Settings.
             if (username.isEmpty()) backfillUsername(api!!)
         }
@@ -122,6 +123,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         // The login reply already carries the username (falls back to what was typed), so no /api/me round trip.
         this.username = r.username?.takeIf { it.isNotEmpty() } ?: username
         stack.reset(Screen.Browse(Tab.HOME))
+        loadSortingSettings(a)
         loadHomeInternal(a)
     }
 
@@ -173,6 +175,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         seriesBooksCache.clear()
         collectionsCache = null
         libraryTab = null
+        api?.let { loadSortingSettings(it) }
         loadHome()
     }
 
@@ -209,16 +212,21 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             loadLibrary(a, lib)
         }
         lastLoadedAt = System.currentTimeMillis()
-        loadSortingSettings(a)
     }
 
-    private suspend fun loadSortingSettings(a: AbsApi) {
-        try {
-            sortingSettings = a.sortingSettings()
-        } catch (e: kotlinx.coroutines.CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            // keep the previous value (default off)
+    /**
+     * The sort setting is server-wide, so it is read once per session (login, restored session) and on Refresh library,
+     * in the background: it never holds [loading] and a failure keeps the previous value (default off).
+     */
+    private fun loadSortingSettings(a: AbsApi) {
+        viewModelScope.launch {
+            try {
+                sortingSettings = a.sortingSettings()
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // keep the previous value
+            }
         }
     }
 

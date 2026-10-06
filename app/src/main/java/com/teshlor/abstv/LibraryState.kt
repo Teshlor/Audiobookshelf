@@ -24,8 +24,6 @@ class LibraryTabState(
     var sort by mutableStateOf(initialSort); private set
     var filter by mutableStateOf(LibraryFilter.ALL); private set
 
-    /** Empty until /api/me answers; a failure keeps the previous map (cards just show no progress). */
-    var progress by mutableStateOf(ProgressMap()); private set
 
     /** Bumped on every reset so an in-flight [indexForLetter] gives up when the list changes under it. */
     private var version = 0
@@ -68,7 +66,7 @@ class LibraryTabState(
     fun refreshProgress() {
         scope.launch {
             try {
-                progress = fetchProgress()
+                fetchProgress() // the shared map (AppViewModel.progress) is updated by the callback itself
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
