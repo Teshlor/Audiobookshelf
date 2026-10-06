@@ -130,13 +130,13 @@ class AbsParseTest {
         s.dispatcher = object : Dispatcher() { override fun dispatch(request: RecordedRequest) = dispatcher(request) }
         s.start()
         server = s
-        return AbsApi(s.url("/").toString(), "tok123") to s
+        return AbsApi(s.url("/").toString(), AuthSession(MemoryTokenStore(accessToken = "tok123"))) to s
     }
 
     private fun ok(name: String) = MockResponse().setBody(fixture(name))
 
     @Test fun coverUrlHasNoToken() {
-        val a = AbsApi("http://host:13378/", "secret")
+        val a = AbsApi("http://host:13378/", AuthSession(MemoryTokenStore(accessToken = "secret")))
         assertEquals("http://host:13378/api/items/li-1/cover?width=400", a.coverUrl("li-1"))
         assertFalse(a.coverUrl("x").contains("secret"))
     }

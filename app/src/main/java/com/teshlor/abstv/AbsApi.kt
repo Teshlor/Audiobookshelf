@@ -68,17 +68,13 @@ fun seriesFilter(seriesId: String) = "series." + seriesId.encodeUtf8().base64()
 /** progress filter values accepted by upstream: in-progress, finished, not-started, not-finished. */
 fun progressFilter(value: String) = "progress." + value.encodeUtf8().base64()
 
-class AbsApi(serverUrl: String, val token: String = "") {
+class AbsApi(serverUrl: String, val auth: AuthSession? = null) {
     val baseUrl: String = normalize(serverUrl)
 
     private val json = AbsParse.json
-    private val client = OkHttpClient.Builder()
-        .addInterceptor { chain ->
-            val b = chain.request().newBuilder()
-            if (token.isNotEmpty()) b.header("Authorization", "Bearer $token")
-            chain.proceed(b.build())
-        }
-        .build()
+
+    /** Bearer interceptor + refresh authenticator when signed in; also what ExoPlayer streams through. */
+    val client: OkHttpClient = auth?.newClient(baseUrl) ?: OkHttpClient()
 
     private suspend fun exec(req: Request): String = withContext(Dispatchers.IO) {
         client.newCall(req).execute().use { r ->
@@ -101,15 +97,14 @@ class AbsApi(serverUrl: String, val token: String = "") {
         .post(body.toString().toRequestBody("application/json".toMediaType()))
         .build()
 
-    /** Returns the user's API token. */
-    suspend fun login(username: String, password: String): String {
-        val body = exec(post("/login", buildJsonObject {
+    /** Asks for the access + refresh pair (`x-return-tokens`); the legacy `user.token` is ignored. */
+    suspend fun login(username: String, password: String): LoginResult {
+        val req = post("/login", buildJsonObject {
             put("username", username)
             put("password", password)
-        }))
-        val user = json.parseToJsonElement(body).jsonObject["user"]?.jsonObject
-        return user?.get("token")?.jsonPrimitive?.content
-            ?: throw IOException("Login response had no token")
+        }).newBuilder().header("x-return-tokens", "true").build()
+        val r = AuthSession.parseTokens(exec(req))
+        return r.copy(username = r.username ?: username)
     }
 
     /** Parses off the main thread: callers run on Main (viewModelScope) and the library JSON is large. */
@@ -255,10 +250,8 @@ class AbsApi(serverUrl: String, val token: String = "") {
     /** Covers are public upstream, so no token (keeps it out of Coil's cache keys and logs). */
     fun coverUrl(itemId: String) = "$baseUrl/api/items/$itemId/cover?width=400"
 
-    fun trackUrl(contentUrl: String): String {
-        val sep = if (contentUrl.contains('?')) '&' else '?'
-        return "$baseUrl$contentUrl${sep}token=$token"
-    }
+    /** No `?token=`: the player's data source sends the Bearer header (and refreshes it) through [client]. */
+    fun trackUrl(contentUrl: String) = "$baseUrl$contentUrl"
 
     companion object {
         fun normalize(raw: String): String {

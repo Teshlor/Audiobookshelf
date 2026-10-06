@@ -8,24 +8,38 @@ import androidx.compose.runtime.setValue
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import okhttp3.Call
+import okhttp3.OkHttpClient
+import okhttp3.Request
 
 /**
  * Plays one audiobook (possibly many files) as a single timeline and reports
  * progress to the Audiobookshelf server through a playback session.
  */
+@androidx.annotation.OptIn(UnstableApi::class)
 class PlayerController(context: Context) {
     // Lazy: building ExoPlayer is slow on weak TV SoCs and is not needed until a book is played, so keep it
     // off the cold-start path. Always first touched on Main (start()).
     private val appContext = context.applicationContext
     private val playerLazy = lazy {
+        // Streams through the signed-in OkHttpClient (Bearer header + refresh on 401). Resolved per request so a
+        // re-login (new AbsApi) is picked up without rebuilding the player.
+        val calls = object : Call.Factory {
+            override fun newCall(request: Request): Call =
+                (api?.client ?: fallbackClient).newCall(request)
+        }
         ExoPlayer.Builder(appContext)
+            .setMediaSourceFactory(DefaultMediaSourceFactory(OkHttpDataSource.Factory(calls)))
             .setAudioAttributes(
                 AudioAttributes.Builder()
                     .setUsage(C.USAGE_MEDIA)
@@ -35,6 +49,7 @@ class PlayerController(context: Context) {
             )
             .build()
     }
+    private val fallbackClient by lazy { OkHttpClient() } // only if a request arrives with no session
     private val player by playerLazy
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 

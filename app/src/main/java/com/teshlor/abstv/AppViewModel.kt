@@ -10,7 +10,15 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.launch
 
 class AppViewModel(app: Application) : AndroidViewModel(app) {
+    // One "abs" file: `prefs` for non-token keys (username, library_id), `store` for server + token pair.
     private val prefs = app.getSharedPreferences("abs", Context.MODE_PRIVATE)
+    private val store: TokenStore = SharedPrefsTokenStore(prefs)
+
+    /** True after the server rejected the refresh token; the UI is already back on Login showing [error]. */
+    var authExpired by mutableStateOf(false); private set
+
+    // Fires on an OkHttp thread; hop to Main before touching state.
+    private val authSession = AuthSession(store) { viewModelScope.launch { handleAuthExpired() } }
 
     val stack = NavStack(Screen.Login)
     val screen: Screen get() = stack.current
@@ -44,25 +52,27 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         theme = forcedTheme ?: themeFor()
     }
 
-    val savedServer: String get() = prefs.getString("server", "").orEmpty()
+    val savedServer: String get() = store.server
 
     init {
-        val server = prefs.getString("server", null)
-        val token = prefs.getString("token", null)
-        if (!server.isNullOrEmpty() && !token.isNullOrEmpty()) {
-            api = AbsApi(server, token)
+        // A pre-Auth-v2 install has only the legacy token, which the store serves as the access token.
+        val server = store.server
+        if (server.isNotEmpty() && !store.accessToken.isNullOrEmpty()) {
+            api = AbsApi(server, authSession)
             stack.reset(Screen.Browse(Tab.HOME))
             loadHome()
         }
     }
 
-    // --- Session storage: kept in these two small functions so the Auth v2 (JWT) change merges cleanly. ---
-    private fun storeSession(a: AbsApi, token: String) {
-        prefs.edit().putString("server", a.baseUrl).putString("token", token).apply()
+    // --- Session storage. Never writes the legacy "token" key; saveTokens also drops it. ---
+    private fun storeSession(a: AbsApi, r: LoginResult) {
+        store.server = a.baseUrl
+        store.saveTokens(r.accessToken, r.refreshToken, r.username)
     }
 
     private fun clearSession() {
-        prefs.edit().remove("token").remove("username").apply()
+        store.clearTokens()
+        prefs.edit().remove("username").apply()
     }
 
     private fun launchLoading(block: suspend () -> Unit) {
@@ -72,7 +82,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             try {
                 block()
             } catch (e: Exception) {
-                error = e.message ?: e.toString()
+                if (shouldShowError(authExpired, e)) error = e.message ?: e.toString()
             } finally {
                 loading = false
             }
@@ -80,15 +90,22 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun login(server: String, username: String, password: String) = launchLoading {
-        val token = AbsApi(server).login(username, password)
-        val a = AbsApi(server, token)
-        storeSession(a, token)
+        authExpired = false
+        val r = AbsApi(server).login(username, password)
+        val a = AbsApi(server, authSession)
+        storeSession(a, r)
         api = a
-        val name = runCatching { a.me().username }.getOrNull()?.takeIf { it.isNotEmpty() } ?: username
-        this.username = name
-        prefs.edit().putString("username", name).apply()
+        // The login reply already carries the username (falls back to what was typed), so no /api/me round trip.
+        this.username = r.username?.takeIf { it.isNotEmpty() } ?: username
         stack.reset(Screen.Browse(Tab.HOME))
         loadHomeInternal(a)
+    }
+
+    private fun handleAuthExpired() {
+        if (api == null) return // already signed out
+        logout()
+        authExpired = true
+        error = "Please sign in again"
     }
 
     fun logout() {
