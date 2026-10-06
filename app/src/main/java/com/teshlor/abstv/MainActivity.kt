@@ -11,6 +11,7 @@ import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.MaterialTheme
@@ -71,7 +72,17 @@ class MainActivity : ComponentActivity() {
     @Composable
     private fun Root() {
         val saveable = rememberSaveableStateHolder()
-        BackHandler(enabled = vm.screen == Screen.Detail || vm.screen == Screen.Player) { vm.back() }
+        BackHandler(enabled = vm.screen == Screen.Detail || vm.screen == Screen.Player || vm.screen is Screen.SeriesBooks) { vm.back() }
+        // A popped series detail drops its saved scroll position and remembered focus.
+        DisposableEffect(saveable) {
+            vm.stack.onRemoved = { gone ->
+                if (gone is Screen.SeriesBooks) {
+                    saveable.removeState("${gone.key}#${vm.stateEpoch}")
+                    vm.lastFocused.remove(gone.key)
+                }
+            }
+            onDispose { vm.stack.onRemoved = null }
+        }
         // Header band on Login and Home only; everything else gets the plain bg.
         ThemeDecor(vm.theme, showBand = vm.screen == Screen.Login || vm.screen == Screen.Browse(Tab.HOME))
         // Per-screen saved state keeps scroll positions across Detail -> Back.
@@ -79,13 +90,14 @@ class MainActivity : ComponentActivity() {
         saveable.SaveableStateProvider("${vm.screen.key}#${vm.stateEpoch}") {
             when (val s = vm.screen) {
                 Screen.Login -> LoginScreen(vm)
+                is Screen.SeriesBooks -> Shell(vm) { SeriesBooksScreen(vm, s) }
                 is Screen.Browse -> Shell(vm) {
                     when (s.tab) {
                         Tab.HOME -> HomeScreen(vm)
                         Tab.SETTINGS -> SettingsTab(vm)
                         Tab.SEARCH -> SearchTab()
                         Tab.LIBRARY -> LibraryTab()
-                        Tab.SERIES -> SeriesTab()
+                        Tab.SERIES -> SeriesTab(vm)
                         Tab.COLLECTIONS -> CollectionsTab()
                     }
                 }

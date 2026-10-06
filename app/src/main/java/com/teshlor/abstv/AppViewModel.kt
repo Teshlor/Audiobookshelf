@@ -7,6 +7,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 
 class AppViewModel(app: Application) : AndroidViewModel(app) {
@@ -37,8 +39,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     var libraries by mutableStateOf<List<Library>>(emptyList()); private set
     var selectedLibrary by mutableStateOf<Library?>(null); private set
-    var books by mutableStateOf<List<Book>>(emptyList()); private set
-    var continueListening by mutableStateOf<List<Book>>(emptyList()); private set
+    /** Home shelves in the server's order, and the signed-in user's per-book progress (empty if /api/me failed). */
+    var shelves by mutableStateOf<List<Shelf>>(emptyList()); private set
+    var progress by mutableStateOf(ProgressMap()); private set
     var selectedBook by mutableStateOf<Book?>(null); private set
 
     val player = PlayerController(app)
@@ -61,6 +64,24 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             api = AbsApi(server, authSession)
             stack.reset(Screen.Browse(Tab.HOME))
             loadHome()
+            // Installs from before the nav work never stored a username; backfill it once for Settings.
+            if (username.isEmpty()) backfillUsername(api!!)
+        }
+    }
+
+    private fun backfillUsername(a: AbsApi) {
+        viewModelScope.launch {
+            val name = try {
+                a.me().username
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                ""
+            }
+            if (name.isNotEmpty() && api === a) {
+                username = name
+                prefs.edit().putString("username", name).apply()
+            }
         }
     }
 
@@ -113,7 +134,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         clearSession()
         api = null
         username = ""
-        libraries = emptyList(); books = emptyList(); continueListening = emptyList()
+        libraries = emptyList(); clearLibraryData()
         selectedLibrary = null
         lastFocused.clear()
         stateEpoch++
@@ -121,8 +142,32 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         stack.reset(Screen.Login)
     }
 
+    /** Series tab data, created lazily per library and dropped on Refresh, library switch and logout. */
+    private var seriesPagerHolder: Pager<Series>? = null
+
+    /** Series detail books by series id (sequence-sorted); same lifetime as [seriesPager]. Main-thread only. */
+    val seriesBooksCache = HashMap<String, List<Book>>()
+
+    fun seriesPager(): Pager<Series>? {
+        seriesPagerHolder?.let { return it }
+        val a = api ?: return null
+        val lib = selectedLibrary ?: return null
+        return Pager<Series>(viewModelScope, pageSize = 30) { page, limit -> a.series(lib.id, page, limit) }
+            .also { seriesPagerHolder = it; it.loadMore() }
+    }
+
+    private fun clearLibraryData() {
+        shelves = emptyList(); progress = ProgressMap()
+        seriesPagerHolder = null
+        seriesBooksCache.clear()
+    }
+
     /** Settings > Refresh library. */
-    fun refreshLibrary() = loadHome()
+    fun refreshLibrary() {
+        seriesPagerHolder = null
+        seriesBooksCache.clear()
+        loadHome()
+    }
 
     fun loadHome() = launchLoading { loadHomeInternal(api ?: return@launchLoading) }
 
@@ -140,15 +185,28 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private suspend fun loadLibrary(a: AbsApi, lib: Library) {
-        books = a.items(lib.id)
-        continueListening = a.continueListening(lib.id)
+        // One personalized() request feeds every Home shelf. Progress is best-effort: without it cards just show no bar.
+        coroutineScope {
+            val shelvesJob = async { a.personalized(lib.id) }
+            val progressJob = async {
+                try {
+                    a.progress()
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    null
+                }
+            }
+            shelves = shelvesJob.await()
+            progressJob.await()?.let { progress = it }
+        }
     }
 
     /** Switches library, persists the choice and lands on Home. */
     fun selectLibrary(lib: Library) {
         selectedLibrary = lib
         prefs.edit().putString("library_id", lib.id).apply()
-        books = emptyList(); continueListening = emptyList()
+        clearLibraryData()
         lastFocused.clear()
         stateEpoch++
         stack.selectTab(Tab.HOME)
@@ -170,6 +228,16 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    fun openSeries(series: Series) {
+        stack.push(Screen.SeriesBooks(series.id, series.name))
+    }
+
+    /** Series detail's Continue button: plays [book] without going through Book Detail. */
+    fun playBook(book: Book) {
+        selectedBook = book
+        play()
+    }
+
     fun play() {
         val a = api ?: return
         val book = selectedBook ?: return
@@ -179,16 +247,16 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** Back for Detail and Player (Browse and Login are handled by the shell). */
+    /** Back for Detail, Player and SeriesBooks (Browse and Login are handled by the shell). */
     fun back() {
         when (screen) {
             Screen.Player -> {
                 player.stop()
                 stack.pop() // Player
-                stack.pop() // Detail
+                if (screen == Screen.Detail) stack.pop() // Series detail plays without a Detail page
                 loadHome() // refresh Continue Listening
             }
-            Screen.Detail -> stack.pop()
+            Screen.Detail, is Screen.SeriesBooks -> stack.pop()
             else -> Unit
         }
     }

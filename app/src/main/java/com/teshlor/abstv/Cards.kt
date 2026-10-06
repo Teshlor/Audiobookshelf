@@ -1,0 +1,286 @@
+@file:OptIn(ExperimentalTvMaterial3Api::class)
+
+package com.teshlor.abstv
+
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.ColorMatrix
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.tv.material3.Border
+import androidx.tv.material3.Card
+import androidx.tv.material3.CardDefaults
+import androidx.tv.material3.ExperimentalTvMaterial3Api
+import androidx.tv.material3.LocalContentColor
+import androidx.tv.material3.Text
+import coil.compose.AsyncImage
+import kotlin.math.roundToInt
+
+// Shared cards for Home and Series (BookCard stays in Screens.kt; its signature is used by other tabs).
+// Derived colours follow design/nav/HANDOFF.md section 7, computed from the six theme tokens.
+
+internal val AbsColors.trayColor get() = lerp(bg, surface, 0.55f)
+internal val AbsColors.trackColor get() = lerp(bg, surface, 0.55f)
+internal val AbsColors.placeholderColor get() = lerp(bg, surface, 0.75f)
+internal val AbsColors.currentRowColor get() = lerp(bg, surface, 0.70f)
+
+/** True while the rail is expanded; tabs use it to avoid grabbing focus out of the rail when late data arrives. */
+val LocalRailOpen = compositionLocalOf { false }
+
+// ---- Pure helpers (unit tested) ----
+
+/** "11h 19m left", "42m left", "Under a minute left". */
+fun timeLeftLabel(seconds: Double): String {
+    val total = seconds.toLong().coerceAtLeast(0)
+    val h = total / 3600
+    val m = (total % 3600) / 60
+    return when {
+        h > 0 -> "${h}h ${m}m left"
+        m > 0 -> "${m}m left"
+        else -> "Under a minute left"
+    }
+}
+
+/** "22h 40m", "40m"; used for book and series durations. */
+fun durationLabel(seconds: Double): String {
+    val total = seconds.toLong().coerceAtLeast(0)
+    val h = total / 3600
+    val m = (total % 3600) / 60
+    return if (h > 0) "${h}h ${m}m" else "${m}m"
+}
+
+/** "1 book", "4 books", "4 books · 2 finished" (the finished part is left out when it is 0). */
+fun seriesSubtitle(total: Int, finished: Int): String {
+    val base = if (total == 1) "1 book" else "$total books"
+    return if (finished > 0) "$base · $finished finished" else base
+}
+
+// ---- Entry focus ----
+
+/** Plain holder (not state): focus changes must not recompose the tab. */
+class FocusFlag { var has = false }
+
+fun Modifier.trackFocus(flag: FocusFlag): Modifier = onFocusChanged { flag.has = it.hasFocus }
+
+/**
+ * Requests focus on [target] once per screen entry, the first time [ready] becomes true. It never repeats, so a data
+ * refresh (after the Player, the 5 minute auto refresh) can't snap scrolling or steal focus. It also skips the request
+ * when the rail is open or something in the content already has focus. [prepare] runs first (scroll the target into
+ * composition). A fresh entry, such as after Detail or a tab switch, starts with a fresh flag.
+ */
+@Composable
+fun EntryFocus(ready: Boolean, target: FocusRequester, flag: FocusFlag, prepare: suspend () -> Unit = {}) {
+    val railOpen by rememberUpdatedState(LocalRailOpen.current)
+    var done by remember { mutableStateOf(false) }
+    LaunchedEffect(ready) {
+        if (!ready || done) return@LaunchedEffect
+        done = true
+        if (railOpen || flag.has) return@LaunchedEffect
+        prepare()
+        target.requestWhenReady()
+    }
+}
+
+// ---- Cards ----
+
+@Composable
+private fun cardColors() = LocalAbsColors.current.let { c ->
+    CardDefaults.colors(
+        containerColor = c.surface, contentColor = c.onSurface,
+        focusedContainerColor = c.accent, focusedContentColor = c.onAccent,
+        pressedContainerColor = c.accent, pressedContentColor = c.onAccent,
+    )
+}
+
+/** Continue Listening card: 144x144 cover with a progress bar, then a 48dp strip with the title and time left. */
+@Composable
+fun HeroBookCard(
+    book: Book,
+    coverUrl: String?,
+    progress: BookProgress?,
+    onClick: () -> Unit,
+    onFocused: () -> Unit,
+    modifier: Modifier = Modifier,
+    focusRequester: FocusRequester? = null,
+) {
+    val c = LocalAbsColors.current
+    val left = progress?.takeIf { it.state == ProgressState.IN_PROGRESS && it.duration > 0.0 }?.let { timeLeftLabel(it.remainingSeconds) }
+    val desc = listOfNotNull(
+        book.title, book.author.ifEmpty { null },
+        progress?.takeIf { it.state == ProgressState.IN_PROGRESS }?.let { "${(it.fraction * 100).roundToInt()} percent" },
+        left,
+    ).joinToString(", ")
+    Card(
+        onClick = onClick,
+        modifier = modifier
+            .width(144.dp)
+            .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
+            .onFocusChanged { if (it.hasFocus) onFocused() }
+            .semantics { contentDescription = desc },
+        shape = CardDefaults.shape(RoundedCornerShape(8.dp)),
+        colors = cardColors(),
+        border = CardDefaults.border(focusedBorder = Border(BorderStroke(3.dp, c.focusBorder))),
+        scale = CardDefaults.scale(focusedScale = 1.08f),
+    ) {
+        Column {
+            Box(Modifier.size(144.dp)) {
+                if (book.hasCover && coverUrl != null) {
+                    AsyncImage(
+                        model = coverUrl, contentDescription = null, contentScale = ContentScale.Crop,
+                        modifier = Modifier.size(144.dp).background(c.surface),
+                    )
+                } else {
+                    Box(Modifier.size(144.dp).background(c.placeholderColor).padding(start = 12.dp, top = 12.dp, end = 12.dp)) {
+                        Text(book.title, fontFamily = FontFamily.Serif, fontSize = 13.sp, lineHeight = 17.sp, maxLines = 4, overflow = TextOverflow.Ellipsis)
+                    }
+                }
+                if (progress != null && progress.state == ProgressState.IN_PROGRESS) {
+                    Box(
+                        Modifier.align(Alignment.BottomStart).padding(8.dp).fillMaxWidth().height(4.dp)
+                            .clip(RoundedCornerShape(2.dp)).background(c.bg),
+                    ) {
+                        Box(Modifier.fillMaxWidth(progress.fraction.coerceIn(0f, 1f)).fillMaxHeight().background(c.accent))
+                    }
+                }
+            }
+            Column(Modifier.fillMaxWidth().height(48.dp).padding(horizontal = 10.dp, vertical = 8.dp)) {
+                Text(book.title, fontSize = 13.sp, lineHeight = 16.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (left != null) {
+                    Text(
+                        left, fontSize = 12.sp, lineHeight = 16.sp, maxLines = 1,
+                        color = LocalContentColor.current.copy(alpha = 0.72f),
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Wide series card (188x176): a tray with up to three stacked covers (first book in front), then a 48dp strip with the
+ * name and "4 books · 2 finished". [covers] are already sequence-ordered and requested at the stack's drawn size.
+ */
+@Composable
+fun SeriesCard(
+    series: Series,
+    covers: List<String?>,
+    finished: Int,
+    onClick: () -> Unit,
+    onFocused: () -> Unit,
+    modifier: Modifier = Modifier,
+    focusRequester: FocusRequester? = null,
+) {
+    val c = LocalAbsColors.current
+    val total = series.books.size
+    val subtitle = seriesSubtitle(total, finished)
+    Card(
+        onClick = onClick,
+        modifier = modifier
+            .width(188.dp)
+            .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
+            .onFocusChanged { if (it.hasFocus) onFocused() }
+            .semantics { contentDescription = "${series.name}, ${subtitle.replace(" · ", ", ")}" },
+        shape = CardDefaults.shape(RoundedCornerShape(10.dp)),
+        colors = cardColors(),
+        border = CardDefaults.border(focusedBorder = Border(BorderStroke(3.dp, c.focusBorder))),
+        scale = CardDefaults.scale(focusedScale = 1.05f),
+    ) {
+        Column {
+            CoverStack(covers, front = 100.dp, step = 34.dp, shrink = 10.dp, tray = Modifier.size(188.dp, 128.dp))
+            Column(Modifier.fillMaxWidth().height(48.dp).padding(horizontal = 10.dp, vertical = 8.dp)) {
+                Text(series.name, fontSize = 13.sp, lineHeight = 16.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(
+                    subtitle, fontSize = 12.sp, lineHeight = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    color = LocalContentColor.current.copy(alpha = 0.72f),
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Stacked covers on a tray: the first is in front and largest; each one behind is [shrink] smaller, [step] further
+ * right and darkened with a draw-time colour filter (no offscreen layer). The group is centred in [tray].
+ */
+@Composable
+fun CoverStack(
+    covers: List<String?>,
+    front: androidx.compose.ui.unit.Dp,
+    step: androidx.compose.ui.unit.Dp,
+    shrink: androidx.compose.ui.unit.Dp,
+    tray: Modifier,
+    trayBg: androidx.compose.ui.graphics.Color = LocalAbsColors.current.trayColor,
+) {
+    val c = LocalAbsColors.current
+    val shown = covers.take(3)
+    val darken = remember {
+        listOf(null, ColorFilter.colorMatrix(ColorMatrix().apply { setToScale(0.68f, 0.68f, 0.68f, 1f) }),
+            ColorFilter.colorMatrix(ColorMatrix().apply { setToScale(0.48f, 0.48f, 0.48f, 1f) }))
+    }
+    val tile = trayBg
+    Box(tray.background(tile)) {
+        if (shown.isEmpty()) return@Box
+        androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth().fillMaxHeight()) {
+            val groupW = front + step * (shown.size - 1)
+            val startX = (maxWidth - groupW) / 2
+            // Back to front, so the first cover ends up on top.
+            for (i in shown.indices.reversed()) {
+                val size = front - shrink * i
+                val url = shown[i]
+                val m = Modifier
+                    .offset(x = startX + step * i, y = (maxHeight - size) / 2)
+                    .size(size)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(c.placeholderColor)
+                    .drawWithContent {
+                        drawContent()
+                        // 2dp tray-coloured edge separates a cover from the one behind it.
+                        drawRect(tile, Offset(this.size.width - 2.dp.toPx(), 0f), Size(2.dp.toPx(), this.size.height))
+                    }
+                if (url != null) {
+                    AsyncImage(
+                        model = url, contentDescription = null, contentScale = ContentScale.Crop,
+                        colorFilter = darken[i], modifier = m,
+                    )
+                } else {
+                    Box(m)
+                }
+            }
+        }
+    }
+}
