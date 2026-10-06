@@ -36,13 +36,46 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.tv.material3.Button
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.tv.material3.Border
+import androidx.tv.material3.ButtonDefaults
 import androidx.tv.material3.Card
+import androidx.tv.material3.CardDefaults
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Text
 import coil.compose.AsyncImage
 
 private val Accent = Color(0xFFF59E0B)
+
+/** Dark button that turns solid orange (and scales up) when focused so D-pad focus is obvious. */
+@Composable
+fun AbsButton(onClick: () -> Unit, modifier: Modifier = Modifier, content: @Composable RowScope.() -> Unit) {
+    androidx.tv.material3.Button(
+        onClick = onClick,
+        modifier = modifier,
+        colors = ButtonDefaults.colors(
+            containerColor = Color(0xFF374151),
+            contentColor = Color.White,
+            focusedContainerColor = Accent,
+            focusedContentColor = Color.Black,
+        ),
+        scale = ButtonDefaults.scale(focusedScale = 1.1f),
+        content = content,
+    )
+}
+
+@Composable
+private fun fieldColors() = OutlinedTextFieldDefaults.colors(
+    focusedTextColor = Color.White,
+    unfocusedTextColor = Color.White,
+    focusedBorderColor = Accent,
+    unfocusedBorderColor = Color(0xFF6B7280),
+    focusedLabelColor = Accent,
+    unfocusedLabelColor = Color(0xFF9CA3AF),
+    cursorColor = Accent,
+)
 
 @Composable
 fun LoginScreen(vm: AppViewModel) {
@@ -55,17 +88,17 @@ fun LoginScreen(vm: AppViewModel) {
     ) {
         Text("Audiobookshelf", fontSize = 32.sp, color = Accent)
         OutlinedTextField(
-            server, { server = it }, Modifier.fillMaxWidth(), singleLine = true,
+            server, { server = it }, Modifier.fillMaxWidth(), singleLine = true, colors = fieldColors(),
             label = { Text("Server (e.g. 192.168.1.10:13378)") },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
         )
-        OutlinedTextField(user, { user = it }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Username") })
+        OutlinedTextField(user, { user = it }, Modifier.fillMaxWidth(), singleLine = true, colors = fieldColors(), label = { Text("Username") })
         OutlinedTextField(
-            pass, { pass = it }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Password") },
+            pass, { pass = it }, Modifier.fillMaxWidth(), singleLine = true, colors = fieldColors(), label = { Text("Password") },
             visualTransformation = PasswordVisualTransformation(),
         )
         vm.error?.let { Text(it, color = Color(0xFFF87171)) }
-        Button(onClick = { vm.login(server, user, pass) }) {
+        AbsButton(onClick = { vm.login(server, user, pass) }) {
             Text(if (vm.loading) "Signing in…" else "Sign in")
         }
     }
@@ -73,7 +106,12 @@ fun LoginScreen(vm: AppViewModel) {
 
 @Composable
 fun BookCard(vm: AppViewModel, book: Book) {
-    Card(onClick = { vm.openBook(book) }, modifier = Modifier.width(150.dp)) {
+    Card(
+        onClick = { vm.openBook(book) },
+        modifier = Modifier.width(150.dp),
+        border = CardDefaults.border(focusedBorder = Border(BorderStroke(3.dp, Accent))),
+        scale = CardDefaults.scale(focusedScale = 1.08f),
+    ) {
         Column {
             AsyncImage(
                 model = vm.api?.coverUrl(book.id),
@@ -99,12 +137,12 @@ fun HomeScreen(vm: AppViewModel) {
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                 vm.libraries.forEach { lib ->
-                    Button(onClick = { vm.selectLibrary(lib) }) {
+                    AbsButton(onClick = { vm.selectLibrary(lib) }) {
                         Text(if (lib.id == vm.selectedLibrary?.id) "● ${lib.name}" else lib.name)
                     }
                 }
-                Button(onClick = { vm.loadHome() }) { Text("Refresh") }
-                Button(onClick = { vm.logout() }) { Text("Log out") }
+                AbsButton(onClick = { vm.loadHome() }) { Text("Refresh") }
+                AbsButton(onClick = { vm.logout() }) { Text("Log out") }
                 if (vm.loading) Text("Loading…")
             }
         }
@@ -145,7 +183,7 @@ fun DetailScreen(vm: AppViewModel) {
                 Text(it.replace(Regex("<[^>]*>"), ""), fontSize = 14.sp, maxLines = 8, overflow = TextOverflow.Ellipsis)
             }
             vm.error?.let { Text(it, color = Color(0xFFF87171)) }
-            Button(onClick = { vm.play() }, modifier = Modifier.focusRequester(focus)) {
+            AbsButton(onClick = { vm.play() }, modifier = Modifier.focusRequester(focus)) {
                 Text(if (vm.loading) "Starting…" else "Play / Resume")
             }
         }
@@ -178,11 +216,11 @@ fun PlayerScreen(vm: AppViewModel) {
         }
         Text("${formatTime(p.position)} / ${formatTime(p.duration)}")
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            Button(onClick = { p.seekBy(-30.0) }) { Text("⏪ 30s") }
-            Button(onClick = { p.togglePlay() }, modifier = Modifier.focusRequester(focus)) {
+            AbsButton(onClick = { p.seekBy(-30.0) }) { Text("⏪ 30s") }
+            AbsButton(onClick = { p.togglePlay() }, modifier = Modifier.focusRequester(focus)) {
                 Text(if (p.isPlaying) "Pause" else "Play")
             }
-            Button(onClick = { p.seekBy(30.0) }) { Text("30s ⏩") }
+            AbsButton(onClick = { p.seekBy(30.0) }) { Text("30s ⏩") }
         }
         Text("Back to stop and return", fontSize = 12.sp, color = Color.Gray)
     }

@@ -11,6 +11,7 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.MaterialTheme
+import androidx.tv.material3.darkColorScheme as tvDarkColorScheme
 import androidx.tv.material3.Surface
 import androidx.compose.material3.MaterialTheme as M3Theme
 
@@ -22,7 +23,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             M3Theme(colorScheme = darkColorScheme()) {
-                MaterialTheme {
+                MaterialTheme(colorScheme = tvDarkColorScheme()) {
                     Surface(shape = RectangleShape) { Root() }
                 }
             }
