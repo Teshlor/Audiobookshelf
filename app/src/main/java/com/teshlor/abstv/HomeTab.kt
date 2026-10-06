@@ -30,6 +30,7 @@ private val HomeStart = 112.dp
 
 /** Server shelf id for Continue Listening; shown as hero cards with time left. */
 private const val CONTINUE_LISTENING = "continue-listening"
+private const val CONTINUE_SERIES = "continue-series"
 
 /** Focus identity of a card: the same book can sit on several shelves, so the shelf id is part of it. */
 fun focusKey(shelfId: String, itemId: String) = "$shelfId/$itemId"
@@ -138,8 +139,12 @@ private fun ShelfRow(vm: AppViewModel, shelf: Shelf, targetKey: String?, target:
                         { vm.openBook(b) }, { vm.lastFocused[screenKey] = fk }, focusRequester = req,
                     )
                 } else {
-                    // BookCard is 144dp wide, so request 288px (2x) rather than the old 400.
-                    BookCard(b, api?.coverUrl(b.id, 288), { vm.openBook(b) }, { vm.lastFocused[screenKey] = fk }, focusRequester = req)
+                    BookCard(
+                        b, api?.bookCoverUrl(b.id), { vm.openBook(b) }, { vm.lastFocused[screenKey] = fk }, focusRequester = req,
+                        progress = vm.progress[b.id],
+                        // Continue Series shows each book's place in its series ("#3").
+                        sequenceBadge = if (shelf.id == CONTINUE_SERIES) b.sequence?.let { "#$it" } else null,
+                    )
                 }
             }
             is SeriesShelf -> items(shelf.series, key = { it.id }, contentType = { "series" }) { s ->

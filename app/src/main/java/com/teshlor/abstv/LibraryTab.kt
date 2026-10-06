@@ -84,7 +84,6 @@ private val AbsColors.placeholder get() = lerp(bg, surface, 0.75f)
 private val AbsColors.outline get() = lerp(bg, onSurface, 0.22f)
 
 /** Covers are drawn at 120dp (about 240px on a 1080p TV), so ask the server for that, not the default 400. */
-private fun AbsApi.libraryCoverUrl(itemId: String) = "$baseUrl/api/items/$itemId/cover?width=240"
 
 @Composable
 fun LibraryTab(vm: AppViewModel) {
@@ -190,10 +189,10 @@ fun LibraryTab(vm: AppViewModel) {
                         verticalArrangement = Arrangement.spacedBy(20.dp),
                     ) {
                         items(ps.items, key = { it.id }, contentType = { "book" }) { b ->
-                            LibraryBookCard(
+                            BookCard(
                                 book = b,
-                                coverUrl = vm.api?.libraryCoverUrl(b.id),
-                                progress = state.progress[b.id],
+                                coverUrl = vm.api?.bookCoverUrl(b.id),
+                                progress = vm.progress[b.id],
                                 onClick = { vm.openBook(b) },
                                 onFocused = { vm.lastFocused[screenKey] = b.id },
                                 modifier = if (b.id == focusId) Modifier.focusRequester(target) else Modifier,
@@ -341,88 +340,6 @@ private fun LetterStrip(current: Char?, modifier: Modifier, onJump: (Char) -> Un
 }
 
 // ------------------------------------------------------------------------------------------------ cards
-
-/**
- * HANDOFF 5.2 standard card: 120x120 cover + 48 strip (2-line title), progress bar and finished check on the cover.
- * The shared BookCard is the 144dp hero size with no overlays, so the Library has its own 120dp variant.
- */
-@Composable
-private fun LibraryBookCard(
-    book: Book,
-    coverUrl: String?,
-    progress: BookProgress?,
-    onClick: () -> Unit,
-    onFocused: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val c = LocalAbsColors.current
-    Card(
-        onClick = onClick,
-        modifier = modifier
-            .width(CardWidth)
-            .onFocusChanged { if (it.hasFocus) onFocused() },
-        shape = CardDefaults.shape(RoundedCornerShape(8.dp)),
-        colors = CardDefaults.colors(
-            containerColor = c.surface, contentColor = c.onSurface,
-            focusedContainerColor = c.accent, focusedContentColor = c.onAccent,
-            pressedContainerColor = c.accent, pressedContentColor = c.onAccent,
-        ),
-        border = CardDefaults.border(focusedBorder = Border(BorderStroke(3.dp, c.focusBorder))),
-        scale = CardDefaults.scale(focusedScale = 1.08f),
-    ) {
-        Column {
-            Box(Modifier.size(CardWidth)) {
-                if (book.hasCover && coverUrl != null) {
-                    AsyncImage(
-                        model = coverUrl, contentDescription = book.title, contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize().background(c.placeholder),
-                    )
-                } else {
-                    NoCover(book)
-                }
-                val state = progress?.state
-                if (progress != null && state == ProgressState.IN_PROGRESS) {
-                    Box(
-                        Modifier.align(Alignment.BottomStart).padding(8.dp).fillMaxWidth().height(4.dp)
-                            .background(c.bg, RoundedCornerShape(2.dp)),
-                    ) {
-                        Box(
-                            Modifier.fillMaxWidth(progress.fraction.coerceIn(0.02f, 1f)).height(4.dp)
-                                .background(c.accent, RoundedCornerShape(2.dp)),
-                        )
-                    }
-                } else if (state == ProgressState.FINISHED) {
-                    Box(
-                        Modifier.align(Alignment.TopEnd).padding(6.dp).size(22.dp).background(c.accent, CircleShape),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(Icons.Filled.Check, contentDescription = "Finished", tint = c.onAccent, modifier = Modifier.size(16.dp))
-                    }
-                }
-            }
-            // Fixed 48dp strip so rows line up whatever the title length. Weight stays Medium in every state.
-            Box(Modifier.fillMaxWidth().height(48.dp).padding(horizontal = 10.dp, vertical = 8.dp)) {
-                Text(book.title, fontSize = 13.sp, lineHeight = 16.sp, fontWeight = FontWeight.Medium, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            }
-        }
-    }
-}
-
-/** Books the server has no cover for: a text tile, so nothing to load or decode. */
-@Composable
-private fun NoCover(book: Book) {
-    val c = LocalAbsColors.current
-    Column(
-        Modifier.fillMaxSize().background(c.placeholder).padding(start = 10.dp, top = 12.dp, end = 10.dp, bottom = 10.dp),
-        verticalArrangement = Arrangement.Top,
-    ) {
-        Text(book.title, fontFamily = FontFamily.Serif, fontSize = 13.sp, lineHeight = 17.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
-        Box(Modifier.padding(vertical = 6.dp).width(20.dp).height(1.dp).background(c.accent))
-        if (book.author.isNotEmpty()) {
-            Text(book.author, fontSize = 10.sp, lineHeight = 13.sp, color = c.muted, maxLines = 2, overflow = TextOverflow.Ellipsis)
-        }
-    }
-}
 
 // ------------------------------------------------------------------------------------- loading / messages
 

@@ -93,7 +93,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun clearSession() {
         store.clearTokens()
-        prefs.edit().remove("username").apply()
+        prefs.edit().remove("username").remove("recent_searches").apply()
     }
 
     private fun launchLoading(block: suspend () -> Unit) {
@@ -188,7 +188,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             loader = { page, limit, sort, filter ->
                 a.libraryItems(lib.id, page, limit, sort.sort.apiKey, sort.desc, filter.apiFilter)
             },
-            fetchProgress = { a.progress() },
+            fetchProgress = { refreshProgress() },
         ).also { libraryTab = it; libraryTabKey = key }
     }
 
@@ -205,6 +205,23 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             loadLibrary(a, lib)
         }
         lastLoadedAt = System.currentTimeMillis()
+    }
+
+    /** Re-reads /api/me into the shared [progress] map (every tab's cards read it) and returns it. Throws on failure. */
+    suspend fun refreshProgress(): ProgressMap {
+        val a = api ?: return progress
+        return a.progress().also { progress = it }
+    }
+
+    /** [refreshProgress] for tabs that treat progress as decoration: a failure keeps the previous map. */
+    suspend fun refreshProgressQuietly() {
+        try {
+            refreshProgress()
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // keep what we have
+        }
     }
 
     private suspend fun loadLibrary(a: AbsApi, lib: Library) {

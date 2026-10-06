@@ -126,55 +126,6 @@ fun SectionTitle(text: String, modifier: Modifier = Modifier) {
 }
 
 @Composable
-fun BookCard(
-    book: Book,
-    coverUrl: String?,
-    onClick: () -> Unit,
-    onFocused: () -> Unit,
-    modifier: Modifier = Modifier,
-    focusRequester: FocusRequester? = null,
-) {
-    val c = LocalAbsColors.current
-    Card(
-        onClick = onClick,
-        modifier = modifier
-            .width(144.dp)
-            .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
-            .onFocusChanged { if (it.hasFocus) onFocused() },
-        colors = CardDefaults.colors(
-            containerColor = c.surface,
-            contentColor = c.onSurface,
-            focusedContainerColor = c.accent,
-            focusedContentColor = c.onAccent,
-            pressedContainerColor = c.accent,
-            pressedContentColor = c.onAccent,
-        ),
-        border = CardDefaults.border(focusedBorder = Border(BorderStroke(3.dp, c.focusBorder))),
-        scale = CardDefaults.scale(focusedScale = 1.08f),
-    ) {
-        Column {
-            if (book.media.coverPath != null && coverUrl != null) {
-                AsyncImage(
-                    model = coverUrl,
-                    contentDescription = book.title,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.size(144.dp).background(c.surface),
-                )
-            } else {
-                // No cover on the server: a text tile costs nothing to load.
-                Box(Modifier.size(144.dp).background(c.surface).padding(12.dp), contentAlignment = Alignment.CenterStart) {
-                    Text(book.title, fontFamily = FontFamily.Serif, fontSize = 13.sp, maxLines = 4, overflow = TextOverflow.Ellipsis)
-                }
-            }
-            Text(
-                book.title, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(6.dp),
-            )
-        }
-    }
-}
-
-@Composable
 fun DetailScreen(vm: AppViewModel) {
     val c = LocalAbsColors.current
     val book = vm.selectedBook ?: return

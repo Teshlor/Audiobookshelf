@@ -279,7 +279,7 @@ private fun SeriesDetail(vm: AppViewModel, screen: Screen.SeriesBooks, books: Li
             CoverStack(
                 covers = remember(books, vm.api) { books.take(3).map { vm.api?.coverUrl(it.id, 320) } },
                 front = 160.dp, step = 28.dp, shrink = 16.dp,
-                tray = Modifier.size(240.dp, 160.dp), trayBg = Color.Transparent,
+                modifier = Modifier.size(240.dp, 160.dp), trayBg = Color.Transparent,
             )
             Spacer(Modifier.height(16.dp))
             Text("SERIES", fontSize = 12.sp, letterSpacing = 1.6.sp, color = c.muted)

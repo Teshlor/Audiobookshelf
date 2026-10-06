@@ -53,7 +53,6 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -157,6 +156,7 @@ class SearchViewModel(app: Application) : AndroidViewModel(app) {
         counter.invalidate(); debouncer.cancel()
         input = TextFieldValue(""); phase = SearchPhase.Idle; searching = false; drill = null
         restoreKey = null; focusResultsPending = false
+        recents = RecentSearches.decode(prefs.getString("recent_searches", null)) // empty after logout cleared it
     }
 
     fun onFieldChange(v: TextFieldValue) {
@@ -222,11 +222,11 @@ class SearchViewModel(app: Application) : AndroidViewModel(app) {
         prefs.edit().remove("recent_searches").apply()
     }
 
-    fun openSeries(m: SeriesMatch, originKey: String) {
+    /** A series result opens the Series detail screen (same as the Series tab); Back returns here with focus restored. */
+    fun openSeries(m: SeriesMatch, originKey: String, push: (Series) -> Unit) {
         rememberQuery(query)
-        drillOriginKey = originKey; restoreKey = originKey; drillNeedsFocus = true
-        // TODO(M5): once Screen.SeriesBooks exists in Nav.kt, push it here (vm.openSeries) instead of listing in-tab.
-        drill = Drill("SERIES", m.series.name, sortBySequence(m.books), loading = false)
+        restoreKey = originKey
+        push(m.series)
     }
 
     fun openNarrator(m: NarratorMatch, originKey: String) {
@@ -291,10 +291,11 @@ fun SearchTab(vm: AppViewModel) {
     val c = LocalAbsColors.current
     val activity = LocalContext.current as ComponentActivity
     val sv = remember(activity) { ViewModelProvider(activity)[SearchViewModel::class.java] }
-    remember(vm.api, vm.selectedLibrary?.id, vm.stateEpoch) { sv.bind(vm.api, vm.selectedLibrary?.id, vm.stateEpoch); true } // idempotent; must precede the reads below
+    // State writes belong in an effect, not in composition (bind is idempotent per api/library/epoch).
+    LaunchedEffect(vm.api, vm.selectedLibrary?.id, vm.stateEpoch) { sv.bind(vm.api, vm.selectedLibrary?.id, vm.stateEpoch) }
+    val progress = vm.progress
 
     val keyboard = LocalSoftwareKeyboardController.current
-    val focusManager = LocalFocusManager.current
     val scope = rememberCoroutineScope()
     val fieldRequester = remember { FocusRequester() }
     val requesters = remember { HashMap<String, FocusRequester>() }
@@ -398,7 +399,7 @@ fun SearchTab(vm: AppViewModel) {
         val a = vm.api
         when {
             drill != null -> DrillView(
-                drill, shownQuery.ifEmpty { sv.query }, a, listState, ::req,
+                drill, a, progress, listState, ::req,
                 onOpen = { b -> sv.restoreKey = "book:${b.id}"; vm.openBook(b) },
             )
             !searchable -> StartView(
@@ -416,11 +417,11 @@ fun SearchTab(vm: AppViewModel) {
                 shownQuery, sv.recents, ::req,
                 onEdit = { sv.selectAllText(); openKeyboard() }, onRecent = { sv.useRecent(it) },
             )
-            imeVisible -> TypingPreview(results, shownQuery, a)
+            imeVisible -> TypingPreview(results, a)
             else -> ResultsView(
-                results, shownQuery, a, listState, rowStates, ::req,
+                results, shownQuery, a, progress, listState, rowStates, ::req,
                 onBook = { b -> sv.rememberQuery(sv.query); sv.restoreKey = "book:${b.id}"; vm.openBook(b) },
-                onSeries = { m -> sv.openSeries(m, "series:${m.series.id}") },
+                onSeries = { m -> sv.openSeries(m, "series:${m.series.id}") { vm.openSeries(it) } },
                 onNarrator = { m -> sv.openNarrator(m, "narr:${m.name}") },
             )
         }
@@ -523,7 +524,7 @@ private fun GroupHeading(title: String, count: Int) {
 
 @Composable
 private fun ResultsView(
-    r: SearchResult, q: String, api: AbsApi?, listState: LazyListState, rowStates: List<LazyListState>,
+    r: SearchResult, q: String, api: AbsApi?, progress: ProgressMap, listState: LazyListState, rowStates: List<LazyListState>,
     req: (String) -> FocusRequester,
     onBook: (Book) -> Unit, onSeries: (SeriesMatch) -> Unit, onNarrator: (NarratorMatch) -> Unit,
 ) {
@@ -538,7 +539,7 @@ private fun ResultsView(
                 LazyRow(state = rowStates[0], contentPadding = rowPad, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     items(r.book, key = { it.libraryItem.id }) { m ->
                         val b = m.libraryItem
-                        SearchBookCard(b, api?.coverUrl(b.id), q, req("book:${b.id}")) { onBook(b) }
+                        BookCard(b, api?.bookCoverUrl(b.id), { onBook(b) }, {}, focusRequester = req("book:${b.id}"), progress = progress[b.id], highlight = q)
                     }
                 }
             }
@@ -568,7 +569,7 @@ private fun ResultsView(
 
 /** Shown while the keyboard covers the lower half: a compact Books preview plus a count of the other groups. */
 @Composable
-private fun TypingPreview(r: SearchResult, q: String, api: AbsApi?) {
+private fun TypingPreview(r: SearchResult, api: AbsApi?) {
     val c = LocalAbsColors.current
     val other = buildList {
         if (r.series.isNotEmpty()) add("${r.series.size} series")
@@ -599,7 +600,7 @@ private fun TypingPreview(r: SearchResult, q: String, api: AbsApi?) {
 
 @Composable
 private fun DrillView(
-    d: Drill, q: String, api: AbsApi?, listState: LazyListState, req: (String) -> FocusRequester, onOpen: (Book) -> Unit,
+    d: Drill, api: AbsApi?, progress: ProgressMap, listState: LazyListState, req: (String) -> FocusRequester, onOpen: (Book) -> Unit,
 ) {
     val c = LocalAbsColors.current
     Column(Modifier.fillMaxSize()) {
@@ -623,7 +624,7 @@ private fun DrillView(
         ) {
             items(d.books.chunked(BOOKS_PER_ROW), key = { row -> row.first().id }) { row ->
                 Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    row.forEach { b -> SearchBookCard(b, api?.coverUrl(b.id), "", req("book:${b.id}")) { onOpen(b) } }
+                    row.forEach { b -> BookCard(b, api?.bookCoverUrl(b.id), { onOpen(b) }, {}, focusRequester = req("book:${b.id}"), progress = progress[b.id]) }
                 }
             }
         }
@@ -631,57 +632,6 @@ private fun DrillView(
 }
 
 // --- Cards ---------------------------------------------------------------------------------------------------------
-
-/** Title with the matched ranges in accent + Bold; when [focused], onAccent + underline (HANDOFF 5.7). */
-@Composable
-private fun highlighted(text: String, query: String, focused: Boolean): AnnotatedString {
-    val c = LocalAbsColors.current
-    return remember(text, query, focused, c) {
-        buildAnnotatedString {
-            append(text)
-            val style = if (focused) SpanStyle(color = c.onAccent, fontWeight = FontWeight.Bold, textDecoration = TextDecoration.Underline)
-            else SpanStyle(color = c.accent, fontWeight = FontWeight.Bold)
-            highlightRanges(text, query).forEach { addStyle(style, it.first, it.last + 1) }
-        }
-    }
-}
-
-@Composable
-private fun SearchBookCard(book: Book, coverUrl: String?, query: String, requester: FocusRequester, onClick: () -> Unit) {
-    val c = LocalAbsColors.current
-    var focused by remember { mutableStateOf(false) }
-    Card(
-        onClick = onClick,
-        modifier = Modifier.width(120.dp).focusRequester(requester).onFocusChanged { focused = it.hasFocus },
-        colors = CardDefaults.colors(
-            containerColor = c.surface, contentColor = c.onSurface,
-            focusedContainerColor = c.accent, focusedContentColor = c.onAccent,
-            pressedContainerColor = c.accent, pressedContentColor = c.onAccent,
-        ),
-        border = CardDefaults.border(focusedBorder = Border(BorderStroke(3.dp, c.focusBorder))),
-        scale = CardDefaults.scale(focusedScale = 1.08f),
-    ) {
-        Column {
-            if (book.media.coverPath != null && coverUrl != null) {
-                AsyncImage(
-                    model = coverUrl, contentDescription = book.title, contentScale = ContentScale.Crop,
-                    modifier = Modifier.size(120.dp).background(c.surface),
-                )
-            } else {
-                Box(Modifier.size(120.dp).background(c.surface).padding(10.dp), contentAlignment = Alignment.CenterStart) {
-                    Text(book.title, fontFamily = FontFamily.Serif, fontSize = 13.sp, maxLines = 4, overflow = TextOverflow.Ellipsis)
-                }
-            }
-            // Fixed height strip so rows line up regardless of 1- or 2-line titles.
-            Box(Modifier.height(48.dp).padding(horizontal = 8.dp, vertical = 8.dp)) {
-                Text(
-                    highlighted(book.title, query, focused), fontSize = 13.sp, lineHeight = 16.sp, fontWeight = FontWeight.Medium,
-                    maxLines = 2, overflow = TextOverflow.Ellipsis,
-                )
-            }
-        }
-    }
-}
 
 @Composable
 private fun SeriesResultCard(m: SeriesMatch, api: AbsApi?, query: String, requester: FocusRequester, onClick: () -> Unit) {

@@ -221,7 +221,7 @@ fun SeriesCard(
         scale = CardDefaults.scale(focusedScale = 1.05f),
     ) {
         Column {
-            CoverStack(covers, front = 100.dp, step = 34.dp, shrink = 10.dp, tray = Modifier.size(188.dp, 128.dp))
+            CoverStack(covers, front = 100.dp, step = 34.dp, shrink = 10.dp, modifier = Modifier.size(188.dp, 128.dp))
             Column(Modifier.fillMaxWidth().height(48.dp).padding(horizontal = 10.dp, vertical = 8.dp)) {
                 Text(series.name, fontSize = 13.sp, lineHeight = 16.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(
@@ -243,7 +243,7 @@ fun CoverStack(
     front: androidx.compose.ui.unit.Dp,
     step: androidx.compose.ui.unit.Dp,
     shrink: androidx.compose.ui.unit.Dp,
-    tray: Modifier,
+    modifier: Modifier = Modifier,
     trayBg: androidx.compose.ui.graphics.Color = LocalAbsColors.current.trayColor,
 ) {
     val c = LocalAbsColors.current
@@ -253,7 +253,7 @@ fun CoverStack(
             ColorFilter.colorMatrix(ColorMatrix().apply { setToScale(0.48f, 0.48f, 0.48f, 1f) }))
     }
     val tile = trayBg
-    Box(tray.background(tile)) {
+    Box(modifier.background(tile)) {
         if (shown.isEmpty()) return@Box
         androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth().fillMaxHeight()) {
             val groupW = front + step * (shown.size - 1)

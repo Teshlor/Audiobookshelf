@@ -147,7 +147,7 @@ private val AbsColors.outline get() = lerp(bg, onSurface, 0.22f)
 
 private val ContentStart = 112.dp
 private const val CardColumns = 4
-private const val DetailColumns = 3
+private const val DetailColumns = 4
 
 // ---------------------------------------------------------------------------------------------------------
 // Collections grid
@@ -395,16 +395,9 @@ fun CollectionBooksScreen(vm: AppViewModel, collection: BookCollection) {
     val c = LocalAbsColors.current
     val api = vm.api
     val books = remember(collection) { collection.books.distinctBy { it.id } }
-    // Per-book progress is read once for the caption; a failure just hides it.
-    val progress by produceState(ProgressMap(), api) {
-        value = try {
-            api?.progress() ?: ProgressMap()
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            ProgressMap()
-        }
-    }
+    // The shared progress map (also used by every other tab); refreshed on entry, a failure keeps the old map.
+    val progress = vm.progress
+    LaunchedEffect(Unit) { vm.refreshProgressQuietly() }
     val remembered = vm.lastFocused[vm.screen.key]
     val targetId = remember(books) { books.firstOrNull { it.id == remembered }?.id ?: books.firstOrNull()?.id }
     val target = remember { FocusRequester() }
@@ -450,8 +443,9 @@ fun CollectionBooksScreen(vm: AppViewModel, collection: BookCollection) {
                     items(books, key = { it.id }, contentType = { "book" }) { b ->
                         Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
                             BookCard(
-                                b, api?.coverUrl(b.id), { vm.openBook(b) }, { vm.lastFocused[vm.screen.key] = b.id },
+                                b, api?.bookCoverUrl(b.id), { vm.openBook(b) }, { vm.lastFocused[vm.screen.key] = b.id },
                                 focusRequester = if (b.id == targetId) target else null,
+                                progress = progress[b.id],
                             )
                         }
                     }
