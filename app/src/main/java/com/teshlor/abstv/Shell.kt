@@ -24,6 +24,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
@@ -50,6 +51,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.compose.foundation.border
 import androidx.tv.material3.DrawerValue
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Icon
@@ -88,18 +91,18 @@ fun Shell(vm: AppViewModel, content: @Composable () -> Unit) {
 
     fun closeRailToContent() {
         drawerState.setValue(DrawerValue.Closed)
-        scope.launch { runCatching { contentRequester.requestFocus() } }
+        scope.launch { contentRequester.requestWhenReady() }
     }
 
     fun openRail() {
         drawerState.setValue(DrawerValue.Open)
-        scope.launch { runCatching { requesters.getValue(tab).requestFocus() } }
+        scope.launch { requesters.getValue(tab).requestWhenReady() }
     }
 
     // Back (PLAN section 2): content opens the rail on the current tab; on the rail, non-Home goes Home, Home exits.
     BackHandler(enabled = !confirmLogout) {
         when {
-            switching -> switching = false
+            switching -> { switching = false; scope.launch { requesters.getValue(tab).requestWhenReady() } }
             !open -> openRail()
             tab != Tab.HOME -> { vm.selectTab(Tab.HOME); closeRailToContent() }
             else -> activity?.finish()
@@ -180,6 +183,18 @@ fun Shell(vm: AppViewModel, content: @Composable () -> Unit) {
     )
 }
 
+/**
+ * Requests focus once the target is attached. Lazy items and freshly shown rail rows are only placed after layout,
+ * so an immediate requestFocus() throws; retry for a few frames instead of failing silently.
+ */
+suspend fun FocusRequester.requestWhenReady(maxFrames: Int = 30): Boolean {
+    repeat(maxFrames) {
+        if (runCatching { requestFocus() }.isSuccess) return true
+        withFrameNanos { }
+    }
+    return false
+}
+
 /** Solid bg under the collapsed rail plus a 24dp fade to the content, drawn last (cached, so free per frame). */
 private fun Modifier.drawRailFade(bg: Color): Modifier = drawWithCache {
     val rail = RailCollapsed.toPx()
@@ -257,7 +272,7 @@ private fun NavigationDrawerScope.RailItemRow(
 private fun NavigationDrawerScope.LibraryList(vm: AppViewModel, onPick: (Library) -> Unit) {
     val c = LocalAbsColors.current
     val first = remember { FocusRequester() }
-    LaunchedEffect(Unit) { runCatching { first.requestFocus() } }
+    LaunchedEffect(Unit) { first.requestWhenReady() }
     Text("LIBRARIES", fontSize = 12.sp, letterSpacing = 1.6.sp, color = c.muted, modifier = Modifier.padding(start = 16.dp, top = 8.dp))
     vm.libraries.forEachIndexed { i, lib ->
         val current = lib.id == vm.selectedLibrary?.id
@@ -284,17 +299,22 @@ private fun NavigationDrawerScope.LibraryList(vm: AppViewModel, onPick: (Library
 private fun LogoutDialog(onConfirm: () -> Unit, onCancel: () -> Unit) {
     val c = LocalAbsColors.current
     val cancel = remember { FocusRequester() }
-    LaunchedEffect(Unit) { runCatching { cancel.requestFocus() } }
-    Dialog(onDismissRequest = onCancel) { // Back = Cancel
-        Column(
-            Modifier.width(440.dp).background(c.sheet, RoundedCornerShape(20.dp)).padding(28.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Text("Log out?", fontFamily = FontFamily.Serif, fontSize = 26.sp, lineHeight = 32.sp)
-            Text("You'll need to sign in again to listen.", fontSize = 15.sp, color = c.muted)
-            Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                AbsButton(onClick = onConfirm) { Text("Log out") }
-                AbsButton(onClick = onCancel, modifier = Modifier.focusRequester(cancel)) { Text("Cancel") }
+    LaunchedEffect(Unit) { cancel.requestWhenReady() }
+    Dialog(onDismissRequest = onCancel, properties = DialogProperties(usePlatformDefaultWidth = false)) { // Back = Cancel
+        Box(Modifier.fillMaxSize().background(c.bg.copy(alpha = 0.78f)), contentAlignment = Alignment.Center) {
+            Column(
+                Modifier.width(440.dp)
+                    .background(c.sheet, RoundedCornerShape(20.dp))
+                    .border(1.dp, c.hairline, RoundedCornerShape(20.dp))
+                    .padding(28.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Text("Log out?", fontFamily = FontFamily.Serif, fontSize = 26.sp, lineHeight = 32.sp)
+                Text("You'll need to sign in again to listen.", fontSize = 15.sp, color = c.muted)
+                Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    AbsButton(onClick = onConfirm) { Text("Log out") }
+                    AbsButton(onClick = onCancel, modifier = Modifier.focusRequester(cancel)) { Text("Cancel") }
+                }
             }
         }
     }

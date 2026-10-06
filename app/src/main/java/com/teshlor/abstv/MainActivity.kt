@@ -75,17 +75,18 @@ class MainActivity : ComponentActivity() {
         // Header band on Login and Home only; everything else gets the plain bg.
         ThemeDecor(vm.theme, showBand = vm.screen == Screen.Login || vm.screen == Screen.Browse(Tab.HOME))
         // Per-screen saved state keeps scroll positions across Detail -> Back.
-        saveable.SaveableStateProvider(vm.screen.key) {
+        // The epoch changes on logout and library switch, so Home starts fresh (scroll position) after either.
+        saveable.SaveableStateProvider("${vm.screen.key}#${vm.stateEpoch}") {
             when (val s = vm.screen) {
                 Screen.Login -> LoginScreen(vm)
                 is Screen.Browse -> Shell(vm) {
                     when (s.tab) {
                         Tab.HOME -> HomeScreen(vm)
                         Tab.SETTINGS -> SettingsTab(vm)
-                        Tab.SEARCH -> SearchTab(vm)
-                        Tab.LIBRARY -> LibraryTab(vm)
-                        Tab.SERIES -> SeriesTab(vm)
-                        Tab.COLLECTIONS -> CollectionsTab(vm)
+                        Tab.SEARCH -> SearchTab()
+                        Tab.LIBRARY -> LibraryTab()
+                        Tab.SERIES -> SeriesTab()
+                        Tab.COLLECTIONS -> CollectionsTab()
                     }
                 }
                 Screen.Detail -> DetailScreen(vm)

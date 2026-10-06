@@ -29,7 +29,7 @@ fun SettingsTab(vm: AppViewModel) {
     val c = LocalAbsColors.current
     val ctx = LocalContext.current
     val focus = remember { FocusRequester() }
-    LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
+    LaunchedEffect(Unit) { focus.requestWhenReady() }
     val version = remember { runCatching { ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName }.getOrNull().orEmpty() }
     Column(Modifier.padding(start = 112.dp, top = 32.dp, end = 48.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text("SETTINGS", fontSize = 12.sp, letterSpacing = 1.6.sp, color = c.muted)

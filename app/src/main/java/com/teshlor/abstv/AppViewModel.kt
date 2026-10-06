@@ -20,6 +20,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     var username by mutableStateOf(prefs.getString("username", "").orEmpty()); private set
     private var lastLoadedAt = 0L
+
+    /** Bumped on logout and library switch; Root keys saved screen state by it so scroll positions reset. */
+    var stateEpoch by mutableStateOf(0); private set
     var api by mutableStateOf<AbsApi?>(null); private set
     var loading by mutableStateOf(false); private set
     var error by mutableStateOf<String?>(null); private set
@@ -96,6 +99,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         libraries = emptyList(); books = emptyList(); continueListening = emptyList()
         selectedLibrary = null
         lastFocused.clear()
+        stateEpoch++
         error = null
         stack.reset(Screen.Login)
     }
@@ -129,6 +133,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         prefs.edit().putString("library_id", lib.id).apply()
         books = emptyList(); continueListening = emptyList()
         lastFocused.clear()
+        stateEpoch++
         stack.selectTab(Tab.HOME)
         launchLoading { loadLibrary(api ?: return@launchLoading, lib) }
     }

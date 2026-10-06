@@ -190,8 +190,19 @@ fun HomeScreen(vm: AppViewModel) {
     val remembered = vm.lastFocused[vm.screen.key]
     val target = remember(vm.continueListening, vm.books) { FocusRequester() }
     val targetId = (vm.continueListening + vm.books).firstOrNull { it.id == remembered }?.id ?: first?.id
-    LaunchedEffect(targetId) {
-        if (targetId != null) runCatching { target.requestFocus() }
+    LaunchedEffect(targetId, target) {
+        if (targetId == null) return@LaunchedEffect
+        // If the target card is off-screen (e.g. after Detail -> Back), bring it into composition first.
+        val clIdx = vm.continueListening.indexOfFirst { it.id == targetId }
+        if (clIdx >= 0) {
+            rowState.scrollToItem(clIdx)
+        } else {
+            val chunk = vm.books.chunked(5).indexOfFirst { r -> r.any { it.id == targetId } }
+            val before = 1 + (if (vm.error != null) 1 else 0) + (if (vm.continueListening.isNotEmpty()) 2 else 0) + 1
+            if (chunk >= 0) listState.scrollToItem(before + chunk)
+        }
+        // Lazy items are placed after this effect starts, so retry until the card is attached.
+        target.requestWhenReady()
     }
     LazyColumn(
         Modifier.fillMaxSize(),
