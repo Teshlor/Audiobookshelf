@@ -650,7 +650,7 @@ private fun SeriesResultCard(m: SeriesMatch, api: AbsApi?, query: String, reques
     val first = m.books.firstOrNull()
     Surface(
         onClick = onClick,
-        modifier = Modifier.width(300.dp).height(64.dp).focusRequester(requester).onFocusChanged { focused = it.hasFocus },
+        modifier = Modifier.width(300.dp).height(64.dp).focusRequester(requester).returnTarget().onFocusChanged { focused = it.hasFocus },
         shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(12.dp)),
         colors = ClickableSurfaceDefaults.colors(
             containerColor = c.surface, contentColor = c.onSurface,
@@ -685,7 +685,7 @@ private fun NarratorPill(m: NarratorMatch, query: String, requester: FocusReques
     var focused by remember { mutableStateOf(false) }
     Surface(
         onClick = onClick,
-        modifier = Modifier.height(48.dp).focusRequester(requester).onFocusChanged { focused = it.hasFocus },
+        modifier = Modifier.height(48.dp).focusRequester(requester).returnTarget().onFocusChanged { focused = it.hasFocus },
         shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(24.dp)),
         colors = ClickableSurfaceDefaults.colors(
             containerColor = c.surface, contentColor = c.onSurface,

@@ -122,6 +122,19 @@ fun EntryFocus(ready: Boolean, target: FocusRequester, flag: FocusFlag, prepare:
     }
 }
 
+/** The content's most recently focused element, so Right/OK on the rail can return to exactly that card. Plain holder: no recomposition. */
+class ReturnFocus { var last: FocusRequester? = null }
+
+val LocalReturnFocus = compositionLocalOf<ReturnFocus?> { null }
+
+/** Marks a focusable as a candidate to return to: gives it its own requester and records it when focused. */
+@Composable
+fun Modifier.returnTarget(): Modifier {
+    val rf = LocalReturnFocus.current ?: return this
+    val own = remember { FocusRequester() }
+    return this.focusRequester(own).onFocusChanged { if (it.hasFocus) rf.last = own }
+}
+
 /**
  * Waits until [this] has stopped scrolling. Focus first triggers the lazy list's own minimal bring-into-view scroll,
  * and a heading reveal started before it finishes is cancelled by it (scrolls are mutually exclusive); so reveal after.
@@ -182,7 +195,7 @@ fun HeroBookCard(
         modifier = modifier
             .width(144.dp)
             .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
-            .onFocusChanged { if (it.hasFocus) onFocused() }
+            .returnTarget().onFocusChanged { if (it.hasFocus) onFocused() }
             .semantics { contentDescription = desc },
         shape = CardDefaults.shape(RoundedCornerShape(8.dp)),
         colors = cardColors(),
@@ -245,7 +258,7 @@ fun SeriesCard(
         modifier = modifier
             .width(188.dp)
             .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
-            .onFocusChanged { if (it.hasFocus) onFocused() }
+            .returnTarget().onFocusChanged { if (it.hasFocus) onFocused() }
             .semantics { contentDescription = "${series.name}, ${subtitle.replace(" · ", ", ")}" },
         shape = CardDefaults.shape(RoundedCornerShape(10.dp)),
         colors = cardColors(),

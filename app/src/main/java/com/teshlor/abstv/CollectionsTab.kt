@@ -316,7 +316,7 @@ private fun CollectionCard(
         modifier = Modifier
             .width(188.dp)
             .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
-            .onFocusChanged { if (it.hasFocus) onFocused() }
+            .returnTarget().onFocusChanged { if (it.hasFocus) onFocused() }
             .semantics { contentDescription = "${collection.name}, $count" },
         shape = CardDefaults.shape(RoundedCornerShape(10.dp)),
         colors = CardDefaults.colors(

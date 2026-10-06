@@ -80,6 +80,7 @@ fun BookCard(
         modifier = modifier
             .width(CardSize)
             .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
+            .returnTarget()
             .onFocusChanged {
                 focused = it.hasFocus
                 if (it.hasFocus) onFocused()

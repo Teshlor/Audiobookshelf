@@ -371,7 +371,7 @@ private fun BookRow(
         modifier = Modifier
             .fillMaxWidth().height(72.dp)
             .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
-            .onFocusChanged { focused = it.hasFocus; if (it.hasFocus) onFocused() }
+            .returnTarget().onFocusChanged { focused = it.hasFocus; if (it.hasFocus) onFocused() }
             .semantics { contentDescription = desc },
         shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(12.dp)),
         colors = ClickableSurfaceDefaults.colors(

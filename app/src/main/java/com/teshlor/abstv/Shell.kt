@@ -20,12 +20,16 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
+import kotlinx.coroutines.flow.first
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
@@ -35,8 +39,11 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.foundation.focusGroup
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -86,13 +93,33 @@ fun Shell(vm: AppViewModel, content: @Composable () -> Unit) {
     val tab = vm.stack.tab ?: Tab.HOME
     val requesters = remember { Tab.entries.associateWith { FocusRequester() } }
     val contentRequester = remember { FocusRequester() }
+    val returnFocus = remember(vm.screen.key) { ReturnFocus() }
+    val railExpanded = remember { BooleanArray(1) } // what the drawer is actually showing (its currentValue can lag the focus-driven expand)
     var confirmLogout by remember { mutableStateOf(false) }
     var switching by remember { mutableStateOf(false) }
     val open = drawerState.currentValue == DrawerValue.Open
 
+    /**
+     * The one way back from the rail (OK on a rail item, Right, Back-to-Home). Focus is requested only after the drawer
+     * has actually reached Closed, because while it is still open/animating the content is not a focus target and the
+     * request lands nowhere, leaving the next D-pad press to just "wake" focus.
+     */
     fun closeRailToContent() {
         drawerState.setValue(DrawerValue.Closed)
-        scope.launch { contentRequester.requestWhenReady() }
+        scope.launch {
+            snapshotFlow { drawerState.currentValue }.first { it == DrawerValue.Closed }
+            withFrameNanos { }
+            // Back to the exact card the user left (its own requester); a card that is gone or a tab with none remembered
+            // falls back to the first focusable element of the content.
+            val last = returnFocus.last
+            if (last == null || runCatching { last.requestFocus() }.isFailure) contentRequester.requestWhenReady()
+        }
+    }
+
+    // Right on the open rail (any item, or the library switcher) closes it and returns to the content's last focused card.
+    DisposableEffect(vm) {
+        vm.railRightHandler = { if (railExpanded[0]) { closeRailToContent(); true } else false }
+        onDispose { vm.railRightHandler = null }
     }
 
     fun openRail() {
@@ -118,6 +145,7 @@ fun Shell(vm: AppViewModel, content: @Composable () -> Unit) {
         ),
         drawerContent = { value ->
             val expanded = value == DrawerValue.Open
+            SideEffect { railExpanded[0] = expanded }
             Column(
                 Modifier
                     .fillMaxHeight()
@@ -174,9 +202,9 @@ fun Shell(vm: AppViewModel, content: @Composable () -> Unit) {
             Modifier
                 .fillMaxSize()
                 .focusRequester(contentRequester)
-                .focusRestorer()
+                .focusGroup()
                 .drawRailFade(c.bg),
-        ) { CompositionLocalProvider(LocalRailOpen provides open) { content() } }
+        ) { CompositionLocalProvider(LocalRailOpen provides open, LocalReturnFocus provides returnFocus) { content() } }
     }
 
     if (confirmLogout) LogoutDialog(

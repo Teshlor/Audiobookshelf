@@ -23,6 +23,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private val authSession = AuthSession(store) { viewModelScope.launch { handleAuthExpired() } }
 
     val stack = NavStack(Screen.Login)
+
+    /** Set by the shell while it is composed: Right on the open rail returns to the content. Returns true if it handled the key. */
+    var railRightHandler: (() -> Boolean)? = null
     val screen: Screen get() = stack.current
 
     /** Last focused item id per screen key. Plain map on purpose: focus changes must not recompose anything. */

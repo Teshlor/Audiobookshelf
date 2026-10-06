@@ -110,6 +110,12 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        // Handled here, before the view tree: the drawer swallows Right while it is open, which left focus nowhere.
+        if (event.keyCode == KeyEvent.KEYCODE_DPAD_RIGHT && event.action == KeyEvent.ACTION_DOWN && vm.railRightHandler?.invoke() == true) return true
+        return super.dispatchKeyEvent(event)
+    }
+
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
         if (vm.player.active) {
             when (keyCode) {
