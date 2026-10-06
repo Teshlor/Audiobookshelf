@@ -20,7 +20,9 @@ import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -113,6 +115,22 @@ fun EntryFocus(ready: Boolean, target: FocusRequester, flag: FocusFlag, prepare:
         if (railOpen || flag.has) return@LaunchedEffect
         prepare()
         target.requestWhenReady()
+    }
+}
+
+/**
+ * Runs [action] when focus ENTERS this container (not on every move inside it). Lazy lists only scroll far enough to
+ * show the focused card, which strands the heading above it; call a scroll-to-heading here for pivot-like behaviour.
+ * No per-frame work: it is one focus callback, and it keeps its "had focus" flag outside snapshot state.
+ */
+@Composable
+fun Modifier.onFocusEntered(action: suspend () -> Unit): Modifier {
+    val scope = rememberCoroutineScope()
+    val had = remember { BooleanArray(1) }
+    val current by rememberUpdatedState(action)
+    return onFocusChanged { s ->
+        if (s.hasFocus && !had[0]) scope.launch { current() }
+        had[0] = s.hasFocus
     }
 }
 

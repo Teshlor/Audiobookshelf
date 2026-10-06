@@ -100,17 +100,23 @@ fun HomeScreen(vm: AppViewModel) {
                 }
             }
         }
-        for (shelf in shelves) {
+        for ((shelfIndex, shelf) in shelves.withIndex()) {
             item(key = "title:${shelf.id}", contentType = "title") { SectionTitle(shelf.label, side) }
             item(key = "row:${shelf.id}", contentType = "row") {
-                ShelfRow(vm, shelf, targetKey, target, restoreKey)
+                ShelfRow(vm, shelf, targetKey, target, restoreKey) {
+                    // Heading (and, for the first shelf, the Home header) back into view when focus enters the row.
+                    listState.animateScrollToItem(if (shelfIndex == 0) 0 else rowBase + shelfIndex * 2)
+                }
             }
         }
     }
 }
 
 @Composable
-private fun ShelfRow(vm: AppViewModel, shelf: Shelf, targetKey: String?, target: FocusRequester, restoreKey: String?) {
+private fun ShelfRow(
+    vm: AppViewModel, shelf: Shelf, targetKey: String?, target: FocusRequester, restoreKey: String?,
+    onEnter: suspend () -> Unit,
+) {
     val rowState: LazyListState = rememberLazyListState()
     val screenKey = vm.screen.key
     val api = vm.api
@@ -125,6 +131,7 @@ private fun ShelfRow(vm: AppViewModel, shelf: Shelf, targetKey: String?, target:
     }
     // Rows bleed under the rail (start padding) so scaled cards aren't clipped at the edges.
     LazyRow(
+        modifier = Modifier.onFocusEntered(onEnter),
         state = rowState,
         contentPadding = PaddingValues(start = HomeStart, end = 48.dp),
         horizontalArrangement = Arrangement.spacedBy(if (shelf.id == CONTINUE_LISTENING) 20.dp else 16.dp),

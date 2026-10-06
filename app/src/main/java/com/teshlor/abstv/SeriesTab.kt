@@ -21,6 +21,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -32,6 +33,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -57,6 +59,7 @@ import androidx.tv.material3.LocalContentColor
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import coil.compose.AsyncImage
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.CancellationException
 
 // ---- Pure logic (unit tested) ----
@@ -116,6 +119,7 @@ fun SeriesTab(vm: AppViewModel) {
     }
     val st by pager.state.collectAsState()
     val gridState = rememberLazyGridState()
+    val scope = rememberCoroutineScope()
     val flag = remember { FocusFlag() }
     val target = remember { FocusRequester() }
     val key = vm.screen.key
@@ -154,13 +158,17 @@ fun SeriesTab(vm: AppViewModel) {
                 }
             }
         }
-        items(st.items, key = { it.id }, contentType = { "series" }) { s ->
+        itemsIndexed(st.items, key = { _, it -> it.id }, contentType = { _, _ -> "series" }) { i, s ->
             SeriesCard(
                 series = s,
                 covers = remember(s.id, vm.api) { seriesCoverUrls(s, vm.api) },
                 finished = finishedCount(s.books, vm.progress),
                 onClick = { vm.openSeries(s) },
-                onFocused = { vm.lastFocused[key] = s.id },
+                onFocused = {
+                    vm.lastFocused[key] = s.id
+                    // First row: bring the header back (the grid only scrolls far enough to show the card).
+                    if (i < 4 && gridState.firstVisibleItemIndex > 0) scope.launch { gridState.animateScrollToItem(0) }
+                },
                 focusRequester = if (s.id == targetId) target else null,
             )
         }
@@ -256,6 +264,7 @@ private fun SeriesDetail(vm: AppViewModel, screen: Screen.SeriesBooks, books: Li
     val progress = vm.progress
     val key = screen.key
     val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
     val flag = remember { FocusFlag() }
     val button = remember { FocusRequester() }
     val rowTarget = remember { FocusRequester() }
@@ -323,7 +332,10 @@ private fun SeriesDetail(vm: AppViewModel, screen: Screen.SeriesBooks, books: Li
                     book = b, index = i, progress = progress[b.id], coverUrl = vm.api?.coverUrl(b.id, 112),
                     isCurrent = b.id == current,
                     onClick = { vm.openBook(b) },
-                    onFocused = { vm.lastFocused[key] = b.id },
+                    onFocused = {
+                        vm.lastFocused[key] = b.id
+                        if (i == 0 && listState.firstVisibleItemIndex > 0) scope.launch { listState.animateScrollToItem(0) }
+                    },
                     focusRequester = if (b.id == restoreId) rowTarget else null,
                 )
             }

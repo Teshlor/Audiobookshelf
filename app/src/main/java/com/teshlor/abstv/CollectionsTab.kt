@@ -21,6 +21,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -32,6 +33,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -60,6 +62,7 @@ import androidx.tv.material3.Icon
 import androidx.tv.material3.LocalContentColor
 import androidx.tv.material3.Text
 import coil.compose.AsyncImage
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
 
@@ -200,6 +203,7 @@ private fun CollectionsGrid(
     c: AbsColors,
 ) {
     val gridState = rememberLazyGridState()
+    val scope = rememberCoroutineScope()
     val remembered = vm.lastFocused[vm.screen.key]
     // Chosen once, when the first page arrives: the card the user last had (after Back) or the first one.
     val targetId = remember(items.isNotEmpty()) { items.firstOrNull { it.id == remembered }?.id ?: items.firstOrNull()?.id }
@@ -234,11 +238,15 @@ private fun CollectionsGrid(
                 Spacer(Modifier.height(16.dp))
             }
         }
-        items(items, key = { it.id }, contentType = { "collection" }) { col ->
+        itemsIndexed(items, key = { _, it -> it.id }, contentType = { _, _ -> "collection" }) { i, col ->
             CollectionCard(
                 col, vm.api,
                 onClick = { vm.openCollection(col) },
-                onFocused = { vm.lastFocused[vm.screen.key] = col.id },
+                onFocused = {
+                    vm.lastFocused[vm.screen.key] = col.id
+                    // First row: bring the header back (the grid only scrolls far enough to show the card).
+                    if (i < CardColumns && gridState.firstVisibleItemIndex > 0) scope.launch { gridState.animateScrollToItem(0) }
+                },
                 focusRequester = if (col.id == targetId) target else null,
             )
         }

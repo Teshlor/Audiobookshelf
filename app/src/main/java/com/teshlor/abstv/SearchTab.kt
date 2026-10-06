@@ -536,6 +536,9 @@ private fun ResultsView(
     onBook: (Book) -> Unit, onSeries: (SeriesMatch) -> Unit, onNarrator: (NarratorMatch) -> Unit,
 ) {
     val rowPad = PaddingValues(start = SideStart, end = SideEnd)
+    // Each group's heading shares a list item with its row; scroll that item to the top when focus enters the row.
+    val seriesIdx = if (r.book.isNotEmpty()) 1 else 0
+    val narratorIdx = seriesIdx + if (r.series.isNotEmpty()) 1 else 0
     LazyColumn(
         Modifier.fillMaxSize(), state = listState,
         contentPadding = PaddingValues(bottom = 48.dp), verticalArrangement = Arrangement.spacedBy(20.dp),
@@ -543,7 +546,7 @@ private fun ResultsView(
         if (r.book.isNotEmpty()) item(key = "g-books") {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 GroupHeading("Books", r.book.size)
-                LazyRow(state = rowStates[0], contentPadding = rowPad, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                LazyRow(state = rowStates[0], modifier = Modifier.onFocusEntered { listState.animateScrollToItem(0) }, contentPadding = rowPad, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     items(r.book, key = { it.libraryItem.id }) { m ->
                         val b = m.libraryItem
                         BookCard(b, api?.bookCoverUrl(b.id), { onBook(b) }, {}, focusRequester = req("book:${b.id}"), progress = progress[b.id], highlight = q)
@@ -554,7 +557,7 @@ private fun ResultsView(
         if (r.series.isNotEmpty()) item(key = "g-series") {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 GroupHeading("Series", r.series.size)
-                LazyRow(state = rowStates[1], contentPadding = rowPad, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                LazyRow(state = rowStates[1], modifier = Modifier.onFocusEntered { listState.animateScrollToItem(seriesIdx) }, contentPadding = rowPad, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     items(r.series, key = { it.series.id }) { m ->
                         SeriesResultCard(m, api, q, req("series:${m.series.id}")) { onSeries(m) }
                     }
@@ -564,7 +567,7 @@ private fun ResultsView(
         if (r.narrators.isNotEmpty()) item(key = "g-narrators") {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 GroupHeading("Narrators", r.narrators.size)
-                LazyRow(state = rowStates[2], contentPadding = rowPad, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                LazyRow(state = rowStates[2], modifier = Modifier.onFocusEntered { listState.animateScrollToItem(narratorIdx) }, contentPadding = rowPad, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     items(r.narrators, key = { it.name }) { m ->
                         NarratorPill(m, q, req("narr:${m.name}")) { onNarrator(m) }
                     }
