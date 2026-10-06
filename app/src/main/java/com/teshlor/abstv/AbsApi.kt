@@ -1,5 +1,6 @@
 package com.teshlor.abstv
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -130,7 +131,7 @@ class AbsApi(serverUrl: String, val token: String = "") {
     /**
      * Cheapest reliable signal in stock v2.37.1: two `limit=1` item queries. `filter=tracks.none` matches items whose
      * audioFiles array is empty (libraryItemsBookFilters.js), so the library has audio iff total > total(tracks.none).
-     * Fails open (true) if a call fails, so a flaky server never hides a real library.
+     * Fails open (true) if a call fails for any reason other than cancellation, so a flaky server never hides a real library.
      */
     suspend fun hasAudio(libraryId: String): Boolean = try {
         val all = parse(exec(get(apiUrl("api/libraries/$libraryId/items", "limit" to "1", "minified" to "1"))), AbsParse::total)
@@ -139,7 +140,9 @@ class AbsApi(serverUrl: String, val token: String = "") {
             AbsParse::total,
         )
         all == 0 || all > noTracks
-    } catch (e: IOException) {
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
         true
     }
 

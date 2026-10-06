@@ -37,7 +37,7 @@ android {
         // Strong skipping: lambdas and unstable params (List<T>, JsonElement) become skippable.
         freeCompilerArgs += listOf(
             "-P",
-            "plugin:androidx.compose.compiler.plugins.kotlin:experimentalStrongSkipping=true",
+            "plugin:androidx.compose.compiler.plugins.kotlin:strongSkipping=true",
         )
     }
     buildFeatures {

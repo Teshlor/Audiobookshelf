@@ -98,8 +98,9 @@ val AbsPalettes: Map<AbsTheme, AbsColors> = mapOf(
  */
 @Composable
 fun ThemeDecor(theme: AbsTheme, showBand: Boolean) {
-    if (!showBand) return
+    // Decoded unconditionally (and remembered per theme) so re-entering Home never re-decodes on the main thread.
     val band = ImageBitmap.imageResource(AbsPalettes.getValue(theme).band)
+    if (!showBand) return
     Box(Modifier.fillMaxSize()) {
         Image(
             bitmap = band,

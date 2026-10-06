@@ -26,6 +26,9 @@ import kotlinx.coroutines.launch
  * Call [onVisible] with the last visible grid index; it prefetches when within [prefetchDistance] of the end.
  * [loadMore] is a no-op while a page is in flight, after the end, and while an error is pending
  * (call [retry] to try again), so fast D-pad scrolling can't fire duplicate requests.
+ *
+ * Main-thread only: [scope] must be a Main-dispatched scope (e.g. viewModelScope) and every method must be called
+ * from Main. The counters are not synchronised.
  */
 class Pager<T>(
     private val scope: CoroutineScope,
