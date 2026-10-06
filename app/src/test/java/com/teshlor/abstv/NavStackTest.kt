@@ -54,6 +54,21 @@ class NavStackTest {
     }
 
     @Test fun onlyBuiltTabsAreEnabled() {
-        assertEquals(setOf(Tab.HOME, Tab.SETTINGS), Tab.entries.filter { it.enabled }.toSet())
+        assertEquals(setOf(Tab.HOME, Tab.SERIES, Tab.SETTINGS), Tab.entries.filter { it.enabled }.toSet())
+    }
+
+    @Test fun seriesBooksKeyAndRemovalCallbacks() {
+        assertEquals("series:s1", Screen.SeriesBooks("s1", "Saga").key)
+        val n = NavStack(Screen.Browse(Tab.SERIES))
+        val removed = mutableListOf<Screen>()
+        n.onRemoved = { removed += it }
+        val sb = Screen.SeriesBooks("s1", "Saga")
+        n.push(sb)
+        n.push(Screen.Detail)
+        assertEquals(Tab.SERIES, n.tab)
+        n.pop()
+        assertTrue(removed == listOf<Screen>(Screen.Detail))
+        n.selectTab(Tab.HOME) // resets, which removes the series detail too
+        assertTrue(sb in removed)
     }
 }

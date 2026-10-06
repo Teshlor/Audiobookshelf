@@ -13,10 +13,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.OutlinedTextField
@@ -174,88 +170,6 @@ fun BookCard(
                 book.title, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(6.dp),
             )
-        }
-    }
-}
-
-@Composable
-fun HomeScreen(vm: AppViewModel) {
-    val c = LocalAbsColors.current
-    val start = 112.dp
-    val side = Modifier.padding(start = start, end = 48.dp)
-    val listState = rememberLazyListState()
-    val rowState = rememberLazyListState()
-    val first = vm.continueListening.firstOrNull() ?: vm.books.firstOrNull()
-    // Focus the card the user last had (after Detail -> Back), else the first Continue Listening card.
-    val remembered = vm.lastFocused[vm.screen.key]
-    val target = remember(vm.continueListening, vm.books) { FocusRequester() }
-    val targetId = (vm.continueListening + vm.books).firstOrNull { it.id == remembered }?.id ?: first?.id
-    LaunchedEffect(targetId, target) {
-        if (targetId == null) return@LaunchedEffect
-        // If the target card is off-screen (e.g. after Detail -> Back), bring it into composition first.
-        val clIdx = vm.continueListening.indexOfFirst { it.id == targetId }
-        if (clIdx >= 0) {
-            rowState.scrollToItem(clIdx)
-        } else {
-            val chunk = vm.books.chunked(5).indexOfFirst { r -> r.any { it.id == targetId } }
-            val before = 1 + (if (vm.error != null) 1 else 0) + (if (vm.continueListening.isNotEmpty()) 2 else 0) + 1
-            if (chunk >= 0) listState.scrollToItem(before + chunk)
-        }
-        // Lazy items are placed after this effect starts, so retry until the card is attached.
-        target.requestWhenReady()
-    }
-    LazyColumn(
-        Modifier.fillMaxSize(),
-        state = listState,
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(top = 32.dp, bottom = 48.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
-        item {
-            Column(side) {
-                Text(
-                    (vm.selectedLibrary?.name ?: "Audiobooks").uppercase(),
-                    fontSize = 12.sp, letterSpacing = 1.6.sp, color = c.muted,
-                )
-                Text("Home", fontFamily = FontFamily.Serif, fontSize = 30.sp, lineHeight = 36.sp)
-                if (vm.loading) Text("Loading…", color = c.muted)
-            }
-        }
-        vm.error?.let {
-            item {
-                Column(side) {
-                    Text(it, color = c.error)
-                    AbsButton(onClick = { vm.loadHome() }) { Text("Try again") }
-                }
-            }
-        }
-        if (vm.continueListening.isNotEmpty()) {
-            item { SectionTitle("Continue Listening", side) }
-            item {
-                // Bleeds under the rail (start padding) so scaled cards aren't clipped at the edges.
-                LazyRow(
-                    state = rowState,
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(start = start, end = 48.dp),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                ) {
-                    items(vm.continueListening, key = { it.id }) { b ->
-                        BookCard(
-                            b, vm.api?.coverUrl(b.id), { vm.openBook(b) }, { vm.lastFocused[vm.screen.key] = b.id },
-                            focusRequester = if (b.id == targetId) target else null,
-                        )
-                    }
-                }
-            }
-        }
-        item { SectionTitle("Books", side) }
-        items(vm.books.chunked(5), key = { row -> row.first().id }) { row ->
-            Row(side, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                row.forEach { b ->
-                    BookCard(
-                        b, vm.api?.coverUrl(b.id), { vm.openBook(b) }, { vm.lastFocused[vm.screen.key] = b.id },
-                        focusRequester = if (b.id == targetId && vm.continueListening.none { it.id == b.id }) target else null,
-                    )
-                }
-            }
         }
     }
 }

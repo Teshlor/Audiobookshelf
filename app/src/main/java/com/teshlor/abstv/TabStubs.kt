@@ -16,5 +16,4 @@ import androidx.tv.material3.Text
 
 @Composable fun SearchTab() = Soon("Search")
 @Composable fun LibraryTab() = Soon("Library")
-@Composable fun SeriesTab() = Soon("Series")
 @Composable fun CollectionsTab() = Soon("Collections")

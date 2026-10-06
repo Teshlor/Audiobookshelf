@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -100,7 +101,8 @@ fun Shell(vm: AppViewModel, content: @Composable () -> Unit) {
     }
 
     // Back (PLAN section 2): content opens the rail on the current tab; on the rail, non-Home goes Home, Home exits.
-    BackHandler(enabled = !confirmLogout) {
+    // Series detail (not a tab root) handles Back itself, unless the rail is open.
+    BackHandler(enabled = !confirmLogout && (vm.screen is Screen.Browse || open || switching)) {
         when {
             switching -> { switching = false; scope.launch { requesters.getValue(tab).requestWhenReady() } }
             !open -> openRail()
@@ -147,7 +149,7 @@ fun Shell(vm: AppViewModel, content: @Composable () -> Unit) {
                             label = t.label, description = t.label, icon = NavIcons.forTab(t, t == tab), selected = t == tab,
                             expanded = expanded, requester = requesters.getValue(t),
                         ) {
-                            if (t != tab) vm.selectTab(t)
+                            if (t != tab || vm.screen !is Screen.Browse) vm.selectTab(t)
                             closeRailToContent()
                         }
                     }
@@ -174,7 +176,7 @@ fun Shell(vm: AppViewModel, content: @Composable () -> Unit) {
                 .focusRequester(contentRequester)
                 .focusRestorer()
                 .drawRailFade(c.bg),
-        ) { content() }
+        ) { CompositionLocalProvider(LocalRailOpen provides open) { content() } }
     }
 
     if (confirmLogout) LogoutDialog(

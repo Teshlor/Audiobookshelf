@@ -12,7 +12,7 @@ enum class Tab(val label: String, val enabled: Boolean) {
     SEARCH("Search", false),
     HOME("Home", true),
     LIBRARY("Library", false),
-    SERIES("Series", false),
+    SERIES("Series", true),
     COLLECTIONS("Collections", false),
     SETTINGS("Settings", true),
 }
@@ -23,6 +23,7 @@ sealed interface Screen {
 
     data object Login : Screen { override val key = "login" }
     data class Browse(val tab: Tab) : Screen { override val key get() = "tab:${tab.name}" }
+    data class SeriesBooks(val seriesId: String, val name: String) : Screen { override val key get() = "series:$seriesId" }
     data object Detail : Screen { override val key = "detail" }
     data object Player : Screen { override val key = "player" }
 }
@@ -36,6 +37,9 @@ class NavStack(initial: Screen = Screen.Login) {
 
     val size: Int get() = items.size
 
+    /** Called for every screen that leaves the stack (pop or reset); Root uses it to drop saved screen state. */
+    var onRemoved: ((Screen) -> Unit)? = null
+
     /** The tab of the nearest Browse screen in the stack (what the rail highlights), or null on Login. */
     val tab: Tab? get() = items.lastOrNull { it is Screen.Browse }?.let { (it as Screen.Browse).tab }
 
@@ -47,16 +51,19 @@ class NavStack(initial: Screen = Screen.Login) {
     /** Pops the top screen. Returns false (and does nothing) when it is the last one. */
     fun pop(): Boolean {
         if (items.size <= 1) return false
-        items.removeAt(items.lastIndex)
+        val removed = items.removeAt(items.lastIndex)
         current = items.last()
+        onRemoved?.invoke(removed)
         return true
     }
 
     fun selectTab(tab: Tab) = reset(Screen.Browse(tab))
 
     fun reset(screen: Screen) {
+        val removed = items.toList()
         items.clear()
         items.add(screen)
         current = screen
+        removed.forEach { onRemoved?.invoke(it) }
     }
 }

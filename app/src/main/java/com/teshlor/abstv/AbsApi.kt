@@ -197,21 +197,6 @@ class AbsApi(serverUrl: String, val auth: AuthSession? = null) {
     /** Progress lookup for cards: time left, progress bar, finished state. */
     suspend fun progress(): ProgressMap = ProgressMap.from(me())
 
-    suspend fun items(libraryId: String): List<Book> =
-        parse(exec(get("/api/libraries/$libraryId/items?limit=500&sort=media.metadata.title"))) { body ->
-            val arr = json.parseToJsonElement(body).jsonObject["results"]!!.jsonArray
-            json.decodeFromJsonElement(kotlinx.serialization.builtins.ListSerializer(Book.serializer()), arr)
-        }
-
-    suspend fun continueListening(libraryId: String): List<Book> =
-        parse(exec(get("/api/libraries/$libraryId/personalized"))) { body ->
-            val shelves = json.parseToJsonElement(body).jsonArray
-            val shelf = shelves.firstOrNull { it.jsonObject["id"]?.jsonPrimitive?.content == "continue-listening" }
-            val entities = shelf?.jsonObject?.get("entities")?.jsonArray
-            if (entities == null) emptyList()
-            else json.decodeFromJsonElement(kotlinx.serialization.builtins.ListSerializer(Book.serializer()), entities)
-        }
-
     suspend fun item(id: String): Book =
         parse(exec(get("/api/items/$id?expanded=1"))) { json.decodeFromString(Book.serializer(), it) }
 
@@ -247,8 +232,8 @@ class AbsApi(serverUrl: String, val auth: AuthSession? = null) {
         }))
     }
 
-    /** Covers are public upstream, so no token (keeps it out of Coil's cache keys and logs). */
-    fun coverUrl(itemId: String) = "$baseUrl/api/items/$itemId/cover?width=400"
+    /** Covers are public upstream, so no token (keeps it out of Coil's cache keys and logs). [width] = drawn px. */
+    fun coverUrl(itemId: String, width: Int = 400) = "$baseUrl/api/items/$itemId/cover?width=$width"
 
     /** No `?token=`: the player's data source sends the Bearer header (and refreshes it) through [client]. */
     fun trackUrl(contentUrl: String) = "$baseUrl$contentUrl"
