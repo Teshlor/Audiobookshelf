@@ -48,19 +48,20 @@ import androidx.tv.material3.Text
 import coil.compose.AsyncImage
 import androidx.compose.material3.Text as M3Text
 
-private val Accent = Color(0xFFF59E0B)
-
-/** Dark button that turns solid orange (and scales up) when focused so D-pad focus is obvious. */
+/** Themed button that fills with the accent (and scales up) when focused so D-pad focus is obvious. */
 @Composable
 fun AbsButton(onClick: () -> Unit, modifier: Modifier = Modifier, content: @Composable RowScope.() -> Unit) {
+    val c = LocalAbsColors.current
     androidx.tv.material3.Button(
         onClick = onClick,
         modifier = modifier,
         colors = ButtonDefaults.colors(
-            containerColor = Color(0xFF374151),
-            contentColor = Color.White,
-            focusedContainerColor = Accent,
-            focusedContentColor = Color.Black,
+            containerColor = c.surface,
+            contentColor = c.onSurface,
+            focusedContainerColor = c.accent,
+            focusedContentColor = c.onAccent,
+            pressedContainerColor = c.accent,
+            pressedContentColor = c.onAccent,
         ),
         scale = ButtonDefaults.scale(focusedScale = 1.1f),
         content = content,
@@ -68,18 +69,22 @@ fun AbsButton(onClick: () -> Unit, modifier: Modifier = Modifier, content: @Comp
 }
 
 @Composable
-private fun fieldColors() = OutlinedTextFieldDefaults.colors(
-    focusedTextColor = Color.White,
-    unfocusedTextColor = Color.White,
-    focusedBorderColor = Accent,
-    unfocusedBorderColor = Color(0xFF6B7280),
-    focusedLabelColor = Accent,
-    unfocusedLabelColor = Color(0xFF9CA3AF),
-    cursorColor = Accent,
-)
+private fun fieldColors(): androidx.compose.material3.TextFieldColors {
+    val c = LocalAbsColors.current
+    return OutlinedTextFieldDefaults.colors(
+        focusedTextColor = c.onSurface,
+        unfocusedTextColor = c.onSurface,
+        focusedBorderColor = c.accent,
+        unfocusedBorderColor = c.muted,
+        focusedLabelColor = c.accent,
+        unfocusedLabelColor = c.muted,
+        cursorColor = c.accent,
+    )
+}
 
 @Composable
 fun LoginScreen(vm: AppViewModel) {
+    val c = LocalAbsColors.current
     var server by remember { mutableStateOf(vm.savedServer) }
     var user by remember { mutableStateOf("") }
     var pass by remember { mutableStateOf("") }
@@ -87,7 +92,7 @@ fun LoginScreen(vm: AppViewModel) {
         Modifier.fillMaxSize().padding(horizontal = 240.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically),
     ) {
-        Text("Audiobookshelf", fontSize = 32.sp, color = Accent)
+        Text("Audiobookshelf", fontSize = 32.sp, color = c.accent)
         OutlinedTextField(
             server, { server = it }, Modifier.fillMaxWidth(), singleLine = true, colors = fieldColors(),
             label = { M3Text("Server (e.g. 192.168.1.10:13378)") },
@@ -98,7 +103,7 @@ fun LoginScreen(vm: AppViewModel) {
             pass, { pass = it }, Modifier.fillMaxWidth(), singleLine = true, colors = fieldColors(), label = { M3Text("Password") },
             visualTransformation = PasswordVisualTransformation(),
         )
-        vm.error?.let { Text(it, color = Color(0xFFF87171)) }
+        vm.error?.let { Text(it, color = c.error) }
         AbsButton(onClick = { vm.login(server, user, pass) }) {
             Text(if (vm.loading) "Signing in…" else "Sign in")
         }
@@ -107,10 +112,19 @@ fun LoginScreen(vm: AppViewModel) {
 
 @Composable
 fun BookCard(vm: AppViewModel, book: Book) {
+    val c = LocalAbsColors.current
     Card(
         onClick = { vm.openBook(book) },
         modifier = Modifier.width(150.dp),
-        border = CardDefaults.border(focusedBorder = Border(BorderStroke(3.dp, Accent))),
+        colors = CardDefaults.colors(
+            containerColor = c.surface,
+            contentColor = c.onSurface,
+            focusedContainerColor = c.accent,
+            focusedContentColor = c.onAccent,
+            pressedContainerColor = c.accent,
+            pressedContentColor = c.onAccent,
+        ),
+        border = CardDefaults.border(focusedBorder = Border(BorderStroke(3.dp, c.focusBorder))),
         scale = CardDefaults.scale(focusedScale = 1.08f),
     ) {
         Column {
@@ -118,7 +132,7 @@ fun BookCard(vm: AppViewModel, book: Book) {
                 model = vm.api?.coverUrl(book.id),
                 contentDescription = book.title,
                 contentScale = ContentScale.Crop,
-                modifier = Modifier.size(150.dp).background(Color(0xFF374151)),
+                modifier = Modifier.size(150.dp).background(c.surface),
             )
             Text(
                 book.title, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis,
@@ -130,13 +144,15 @@ fun BookCard(vm: AppViewModel, book: Book) {
 
 @Composable
 fun HomeScreen(vm: AppViewModel) {
+    val c = LocalAbsColors.current
+    val side = Modifier.padding(horizontal = 48.dp)
     LazyColumn(
         Modifier.fillMaxSize(),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(48.dp),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 48.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         item {
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(side, horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                 vm.libraries.forEach { lib ->
                     AbsButton(onClick = { vm.selectLibrary(lib) }) {
                         Text(if (lib.id == vm.selectedLibrary?.id) "● ${lib.name}" else lib.name)
@@ -144,21 +160,25 @@ fun HomeScreen(vm: AppViewModel) {
                 }
                 AbsButton(onClick = { vm.loadHome() }) { Text("Refresh") }
                 AbsButton(onClick = { vm.logout() }) { Text("Log out") }
-                if (vm.loading) Text("Loading…")
+                if (vm.loading) Text("Loading…", color = c.muted)
             }
         }
-        vm.error?.let { item { Text(it, color = Color(0xFFF87171)) } }
+        vm.error?.let { item { Text(it, modifier = side, color = c.error) } }
         if (vm.continueListening.isNotEmpty()) {
-            item { Text("Continue Listening", fontSize = 20.sp, color = Accent) }
+            item { Text("Continue Listening", modifier = side, fontSize = 20.sp, color = c.accent) }
             item {
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                // Bleeds to the screen edges so the scaled first card's focus ring isn't clipped.
+                LazyRow(
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 48.dp),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
                     items(vm.continueListening, key = { it.id }) { BookCard(vm, it) }
                 }
             }
         }
-        item { Text("Books", fontSize = 20.sp, color = Accent) }
+        item { Text("Books", modifier = side, fontSize = 20.sp, color = c.accent) }
         items(vm.books.chunked(5)) { row ->
-            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            Row(side, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 row.forEach { BookCard(vm, it) }
             }
         }
@@ -167,6 +187,7 @@ fun HomeScreen(vm: AppViewModel) {
 
 @Composable
 fun DetailScreen(vm: AppViewModel) {
+    val c = LocalAbsColors.current
     val book = vm.selectedBook ?: return
     val focus = remember { FocusRequester() }
     LaunchedEffect(Unit) { focus.requestFocus() }
@@ -178,12 +199,12 @@ fun DetailScreen(vm: AppViewModel) {
         )
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(book.title, fontSize = 28.sp)
-            if (book.author.isNotEmpty()) Text(book.author, fontSize = 18.sp, color = Accent)
+            if (book.author.isNotEmpty()) Text(book.author, fontSize = 18.sp, color = c.accent)
             if (book.media.duration > 0) Text(formatTime(book.media.duration))
             book.media.metadata.description?.let {
                 Text(it.replace(Regex("<[^>]*>"), ""), fontSize = 14.sp, maxLines = 8, overflow = TextOverflow.Ellipsis)
             }
-            vm.error?.let { Text(it, color = Color(0xFFF87171)) }
+            vm.error?.let { Text(it, color = c.error) }
             AbsButton(onClick = { vm.play() }, modifier = Modifier.focusRequester(focus)) {
                 Text(if (vm.loading) "Starting…" else "Play / Resume")
             }
@@ -193,6 +214,7 @@ fun DetailScreen(vm: AppViewModel) {
 
 @Composable
 fun PlayerScreen(vm: AppViewModel) {
+    val c = LocalAbsColors.current
     val p = vm.player
     val book = vm.selectedBook
     val focus = remember { FocusRequester() }
@@ -210,10 +232,10 @@ fun PlayerScreen(vm: AppViewModel) {
             )
         }
         Text(p.title, fontSize = 24.sp)
-        Text(p.author, color = Accent)
-        Box(Modifier.fillMaxWidth(0.6f).height(6.dp).background(Color(0xFF374151))) {
+        Text(p.author, color = c.accent)
+        Box(Modifier.fillMaxWidth(0.6f).height(6.dp).background(c.surface)) {
             val frac = if (p.duration > 0) (p.position / p.duration).toFloat().coerceIn(0f, 1f) else 0f
-            Box(Modifier.fillMaxWidth(frac).height(6.dp).background(Accent))
+            Box(Modifier.fillMaxWidth(frac).height(6.dp).background(c.accent))
         }
         Text("${formatTime(p.position)} / ${formatTime(p.duration)}")
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -223,7 +245,7 @@ fun PlayerScreen(vm: AppViewModel) {
             }
             AbsButton(onClick = { p.seekBy(30.0) }) { Text("30s ⏩") }
         }
-        Text("Back to stop and return", fontSize = 12.sp, color = Color.Gray)
+        Text("Back to stop and return", fontSize = 12.sp, color = c.muted)
     }
 }
 

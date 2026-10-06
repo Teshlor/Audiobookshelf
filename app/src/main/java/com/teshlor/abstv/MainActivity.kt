@@ -1,5 +1,6 @@
 package com.teshlor.abstv
 
+import android.content.pm.ApplicationInfo
 import android.os.Bundle
 import android.view.KeyEvent
 import androidx.activity.ComponentActivity
@@ -9,6 +10,7 @@ import androidx.activity.viewModels
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.darkColorScheme as tvDarkColorScheme
@@ -21,10 +23,30 @@ class MainActivity : ComponentActivity() {
     @OptIn(ExperimentalTvMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // QA hook, debug builds only: adb shell am start -S -n com.teshlor.abstv/.MainActivity --es theme halloween
+        if (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0) {
+            vm.forcedTheme = AbsTheme.fromKey(intent?.getStringExtra("theme"))
+            vm.refreshTheme()
+        }
         setContent {
-            M3Theme(colorScheme = darkColorScheme()) {
-                MaterialTheme(colorScheme = tvDarkColorScheme()) {
-                    Surface(shape = RectangleShape) { Root() }
+            val c = AbsPalettes.getValue(vm.theme)
+            CompositionLocalProvider(LocalAbsColors provides c) {
+                M3Theme(
+                    colorScheme = darkColorScheme(
+                        primary = c.accent, onPrimary = c.onAccent, background = c.bg, onBackground = c.onSurface,
+                        surface = c.bg, onSurface = c.onSurface, surfaceVariant = c.surface,
+                        onSurfaceVariant = c.onSurface, outline = c.muted, error = c.error,
+                    ),
+                ) {
+                    MaterialTheme(
+                        colorScheme = tvDarkColorScheme(
+                            primary = c.accent, onPrimary = c.onAccent, background = c.bg, onBackground = c.onSurface,
+                            surface = c.bg, onSurface = c.onSurface, surfaceVariant = c.surface,
+                            onSurfaceVariant = c.onSurface, border = c.focusBorder, error = c.error,
+                        ),
+                    ) {
+                        Surface(shape = RectangleShape) { Root() }
+                    }
                 }
             }
         }
@@ -32,6 +54,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
+        vm.refreshTheme()
         vm.player.inForeground = true
     }
 
@@ -47,6 +70,8 @@ class MainActivity : ComponentActivity() {
     @Composable
     private fun Root() {
         BackHandler(enabled = vm.screen == Screen.Detail || vm.screen == Screen.Player) { vm.back() }
+        // Full decor (wash + glows + motif) on Login and Home; Detail and Player get the wash only.
+        ThemeDecor(vm.theme, full = vm.screen == Screen.Login || vm.screen == Screen.Home)
         when (vm.screen) {
             Screen.Login -> LoginScreen(vm)
             Screen.Home -> HomeScreen(vm)

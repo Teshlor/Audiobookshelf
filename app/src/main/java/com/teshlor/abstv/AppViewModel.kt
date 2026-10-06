@@ -32,6 +32,15 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     val player = PlayerController(app)
 
+    /** Set only by the debug-build `--es theme` QA hook; null means follow the date. */
+    var forcedTheme: AbsTheme? = null
+    var theme by mutableStateOf(themeFor()); private set
+
+    /** Re-checks the date (launch and every onStart, so a TV left on overnight picks up the change). */
+    fun refreshTheme() {
+        theme = forcedTheme ?: themeFor()
+    }
+
     val savedServer: String get() = prefs.getString("server", "").orEmpty()
 
     init {
