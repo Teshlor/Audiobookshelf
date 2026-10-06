@@ -90,24 +90,32 @@ class MainActivity : ComponentActivity() {
         ThemeDecor(vm.theme, showBand = vm.screen == Screen.Login || vm.screen == Screen.Browse(Tab.HOME))
         // Per-screen saved state keeps scroll positions across Detail -> Back.
         // The epoch changes on logout and library switch, so Home starts fresh (scroll position) after either.
-        saveable.SaveableStateProvider("${vm.screen.key}#${vm.stateEpoch}") {
-            when (val s = vm.screen) {
-                Screen.Login -> LoginScreen(vm)
-                is Screen.SeriesBooks -> Shell(vm) { SeriesBooksScreen(vm, s) }
-                is Screen.Browse -> Shell(vm) {
-                    when (s.tab) {
-                        Tab.HOME -> HomeScreen(vm)
-                        Tab.SETTINGS -> SettingsTab(vm)
-                        Tab.SEARCH -> SearchTab(vm)
-                        Tab.LIBRARY -> LibraryTab(vm)
-                        Tab.SERIES -> SeriesTab(vm)
-                        Tab.COLLECTIONS -> CollectionsTab(vm)
+        val s = vm.screen
+        val stateKey = "${s.key}#${vm.stateEpoch}"
+        when (s) {
+            Screen.Login -> saveable.SaveableStateProvider(stateKey) { LoginScreen(vm) }
+            // ONE Shell for every screen that has the rail, so switching tabs keeps the same drawer, focus requesters and
+            // coroutines. (A Shell per screen key was disposed on every tab switch, which left the new rail unable to take
+            // focus: D-pad Left did nothing after choosing a tab with OK.)
+            is Screen.Browse, is Screen.SeriesBooks, is Screen.CollectionBooks -> Shell(vm) {
+                saveable.SaveableStateProvider(stateKey) {
+                    when (s) {
+                        is Screen.SeriesBooks -> SeriesBooksScreen(vm, s)
+                        is Screen.CollectionBooks -> CollectionBooksScreen(vm, s.collection)
+                        is Screen.Browse -> when (s.tab) {
+                            Tab.HOME -> HomeScreen(vm)
+                            Tab.SETTINGS -> SettingsTab(vm)
+                            Tab.SEARCH -> SearchTab(vm)
+                            Tab.LIBRARY -> LibraryTab(vm)
+                            Tab.SERIES -> SeriesTab(vm)
+                            Tab.COLLECTIONS -> CollectionsTab(vm)
+                        }
+                        else -> Unit
                     }
                 }
-                is Screen.CollectionBooks -> Shell(vm) { CollectionBooksScreen(vm, s.collection) }
-                Screen.Detail -> DetailScreen(vm)
-                Screen.Player -> PlayerScreen(vm)
             }
+            Screen.Detail -> saveable.SaveableStateProvider(stateKey) { DetailScreen(vm) }
+            Screen.Player -> saveable.SaveableStateProvider(stateKey) { PlayerScreen(vm) }
         }
     }
 

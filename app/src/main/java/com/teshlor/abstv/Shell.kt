@@ -93,7 +93,9 @@ fun Shell(vm: AppViewModel, content: @Composable () -> Unit) {
     val tab = vm.stack.tab ?: Tab.HOME
     val requesters = remember { Tab.entries.associateWith { FocusRequester() } }
     val contentRequester = remember { FocusRequester() }
-    val returnFocus = remember(vm.screen.key) { ReturnFocus() }
+    // One holder for the Shell's lifetime: the Right handler registered once below captures it, so it must not be re-keyed.
+    val returnFocus = remember { ReturnFocus() }
+    LaunchedEffect(vm.screen.key) { returnFocus.last = null } // a new screen starts with nothing to return to
     val railExpanded = remember { BooleanArray(1) } // what the drawer is actually showing (its currentValue can lag the focus-driven expand)
     var confirmLogout by remember { mutableStateOf(false) }
     var switching by remember { mutableStateOf(false) }
