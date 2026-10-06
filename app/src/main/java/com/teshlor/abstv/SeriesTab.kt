@@ -167,7 +167,7 @@ fun SeriesTab(vm: AppViewModel) {
                 onFocused = {
                     vm.lastFocused[key] = s.id
                     // First row: bring the header back (the grid only scrolls far enough to show the card).
-                    if (i < 4 && gridState.firstVisibleItemIndex > 0) scope.launch { gridState.awaitScrollIdle(); gridState.animateScrollToItem(0) }
+                    if (i < 4 && gridState.firstVisibleItemIndex > 0) scope.launch { gridState.awaitScrollIdle(); if (vm.lastFocused[key] == s.id) gridState.animateScrollToItem(0) }
                 },
                 focusRequester = if (s.id == targetId) target else null,
             )
@@ -334,7 +334,7 @@ private fun SeriesDetail(vm: AppViewModel, screen: Screen.SeriesBooks, books: Li
                     onClick = { vm.openBook(b) },
                     onFocused = {
                         vm.lastFocused[key] = b.id
-                        if (i == 0 && listState.firstVisibleItemIndex > 0) scope.launch { listState.awaitScrollIdle(); listState.animateScrollToItem(0) }
+                        if (i == 0 && listState.firstVisibleItemIndex > 0) scope.launch { listState.awaitScrollIdle(); if (vm.lastFocused[key] == b.id) listState.animateScrollToItem(0) }
                     },
                     focusRequester = if (b.id == restoreId) rowTarget else null,
                 )

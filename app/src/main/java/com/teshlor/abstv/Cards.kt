@@ -143,7 +143,7 @@ fun Modifier.onFocusEntered(state: ScrollableState, action: suspend () -> Unit):
     val had = remember { BooleanArray(1) }
     val current by rememberUpdatedState(action)
     return onFocusChanged { s ->
-        if (s.hasFocus && !had[0]) scope.launch { state.awaitScrollIdle(); current() }
+        if (s.hasFocus && !had[0]) scope.launch { state.awaitScrollIdle(); if (had[0]) current() } // skip if focus already left the row
         had[0] = s.hasFocus
     }
 }

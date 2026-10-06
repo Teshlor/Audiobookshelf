@@ -245,7 +245,7 @@ private fun CollectionsGrid(
                 onFocused = {
                     vm.lastFocused[vm.screen.key] = col.id
                     // First row: bring the header back (the grid only scrolls far enough to show the card).
-                    if (i < CardColumns && gridState.firstVisibleItemIndex > 0) scope.launch { gridState.awaitScrollIdle(); gridState.animateScrollToItem(0) }
+                    if (i < CardColumns && gridState.firstVisibleItemIndex > 0) scope.launch { gridState.awaitScrollIdle(); if (vm.lastFocused[vm.screen.key] == col.id) gridState.animateScrollToItem(0) }
                 },
                 focusRequester = if (col.id == targetId) target else null,
             )
