@@ -44,11 +44,18 @@ class PlayerController(context: Context) {
     private var offsets: List<Double> = emptyList()
     private var listened = 0.0
     private var tickJob: Job? = null
-    private var syncInFlight = false
+    // Listened seconds not yet confirmed by the server, and the part of them currently on the wire.
+    private var pendingSent = 0.0
+    // Bumped per session so a slow request from an old session can't touch the new counters.
+    private var generation = 0
+
+    /** True while the activity is started; playback never begins or continues outside it. */
+    var inForeground = false
 
     suspend fun start(api: AbsApi, itemId: String) {
         stop()
         val s = api.play(itemId)
+        generation++
         if (s.audioTracks.isEmpty()) error("This book has no audio tracks")
         this.api = api
         sessionId = s.id
@@ -57,12 +64,14 @@ class PlayerController(context: Context) {
         title = s.displayTitle
         author = s.displayAuthor
         listened = 0.0
+        pendingSent = 0.0
 
         val items = s.audioTracks.map { MediaItem.fromUri(api.trackUrl(it.contentUrl)) }
         val idx = indexFor(s.startTime)
         player.setMediaItems(items, idx, ((s.startTime - offsets[idx]) * 1000).toLong())
         player.prepare()
-        player.play()
+        // If the user left the app while the session request was in flight, stay paused.
+        if (inForeground) player.play() else player.pause()
         active = true
         tickJob = scope.launch { tickLoop() }
     }
@@ -82,27 +91,34 @@ class PlayerController(context: Context) {
             position = globalPosition()
             isPlaying = player.isPlaying
             if (isPlaying) listened += 0.5
-            if (++ticks % 30 == 0) syncNow(close = false) // every ~15s
+            // Every ~15s, but only when there is something new to report and no sync is already pending.
+            if (++ticks % 30 == 0 && listened - pendingSent > 0.001 && pendingSent < 0.001) syncNow(close = false)
         }
     }
 
-    private fun syncNow(close: Boolean, force: Boolean = false) {
+    /**
+     * Sends the not-yet-reported listened time (listened - pendingSent) with the current position.
+     * The amount is counted as in flight until the request ends: on success it is removed from
+     * [listened], on failure it just stops being in flight so the next sync carries it forward.
+     */
+    private fun syncNow(close: Boolean) {
         val a = api ?: return
         val id = sessionId ?: return
-        if (!close && !force && syncInFlight) return
+        val gen = generation
         val pos = globalPosition()
-        // If a sync is already in flight its time is on the wire; don't send it twice.
-        val l = if (syncInFlight) 0.0 else listened
+        val toSend = (listened - pendingSent).coerceAtLeast(0.0)
         val d = duration
-        if (close) listened = 0.0 else syncInFlight = true
+        pendingSent += toSend
         scope.launch {
-            try {
-                if (close) a.close(id, pos, l, d) else a.sync(id, pos, l, d)
-                // Only drop the time that was actually sent; a failure carries it forward.
-                if (!close) listened = (listened - l).coerceAtLeast(0.0)
+            val ok = try {
+                if (close) a.close(id, pos, toSend, d) else a.sync(id, pos, toSend, d)
+                true
             } catch (_: Exception) {
-            } finally {
-                if (!close) syncInFlight = false
+                false
+            }
+            if (gen == generation) {
+                pendingSent = (pendingSent - toSend).coerceAtLeast(0.0)
+                if (ok) listened = (listened - toSend).coerceAtLeast(0.0)
             }
         }
     }
@@ -112,13 +128,13 @@ class PlayerController(context: Context) {
         if (!active) return
         player.pause()
         isPlaying = false
-        syncNow(close = false, force = true)
+        syncNow(close = false)
     }
 
     fun togglePlay() {
         if (player.isPlaying) {
             player.pause()
-            syncNow(close = false, force = true)
+            syncNow(close = false)
         } else player.play()
         isPlaying = player.isPlaying
     }
@@ -134,6 +150,9 @@ class PlayerController(context: Context) {
         if (!active) return
         tickJob?.cancel()
         syncNow(close = true)
+        generation++ // the close request (and any older one) no longer touches the counters
+        listened = 0.0
+        pendingSent = 0.0
         player.stop()
         player.clearMediaItems()
         active = false

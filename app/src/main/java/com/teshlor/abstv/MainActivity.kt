@@ -30,8 +30,17 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onStart() {
+        super.onStart()
+        vm.player.inForeground = true
+    }
+
     override fun onStop() {
-        vm.player.pauseAndSync()
+        // A rotation/config change restarts the activity but is not leaving the app.
+        if (!isChangingConfigurations) {
+            vm.player.inForeground = false
+            vm.player.pauseAndSync()
+        }
         super.onStop()
     }
 

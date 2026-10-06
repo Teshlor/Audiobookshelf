@@ -46,6 +46,7 @@ import androidx.tv.material3.CardDefaults
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Text
 import coil.compose.AsyncImage
+import androidx.compose.material3.Text as M3Text
 
 private val Accent = Color(0xFFF59E0B)
 
@@ -89,12 +90,12 @@ fun LoginScreen(vm: AppViewModel) {
         Text("Audiobookshelf", fontSize = 32.sp, color = Accent)
         OutlinedTextField(
             server, { server = it }, Modifier.fillMaxWidth(), singleLine = true, colors = fieldColors(),
-            label = { Text("Server (e.g. 192.168.1.10:13378)") },
+            label = { M3Text("Server (e.g. 192.168.1.10:13378)") },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
         )
-        OutlinedTextField(user, { user = it }, Modifier.fillMaxWidth(), singleLine = true, colors = fieldColors(), label = { Text("Username") })
+        OutlinedTextField(user, { user = it }, Modifier.fillMaxWidth(), singleLine = true, colors = fieldColors(), label = { M3Text("Username") })
         OutlinedTextField(
-            pass, { pass = it }, Modifier.fillMaxWidth(), singleLine = true, colors = fieldColors(), label = { Text("Password") },
+            pass, { pass = it }, Modifier.fillMaxWidth(), singleLine = true, colors = fieldColors(), label = { M3Text("Password") },
             visualTransformation = PasswordVisualTransformation(),
         )
         vm.error?.let { Text(it, color = Color(0xFFF87171)) }
