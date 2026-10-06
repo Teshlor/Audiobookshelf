@@ -11,6 +11,16 @@ enum class AbsTheme {
     }
 }
 
+/** Themes in picker order: calendar order through the year. */
+val ThemePickerOrder = listOf(
+    AbsTheme.NEW_YEAR, AbsTheme.AURORA, AbsTheme.VALENTINE, AbsTheme.WINTER, AbsTheme.SPRING, AbsTheme.SUMMER,
+    AbsTheme.FIREFLIES, AbsTheme.JULY_4, AbsTheme.AUTUMN, AbsTheme.HALLOWEEN, AbsTheme.THANKSGIVING, AbsTheme.CHRISTMAS,
+)
+
+/** Resolution order: the debug `--es theme` hook, then the user's saved choice, then the date (Auto). */
+fun resolveTheme(debugOverride: AbsTheme?, saved: AbsTheme?, now: Calendar = Calendar.getInstance()): AbsTheme =
+    debugOverride ?: saved ?: themeFor(now)
+
 /**
  * Picks the theme for a local date (see design/themes/HANDOFF.md section 2). Holidays and moments
  * replace the season. minSdk 23 without desugaring, so this uses Calendar rather than java.time.

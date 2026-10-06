@@ -51,11 +51,19 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Set only by the debug-build `--es theme` QA hook; null means follow the date. */
     var forcedTheme: AbsTheme? = null
-    var theme by mutableStateOf(themeFor()); private set
+    /** The user's pinned theme from Settings (pref `theme_override`); null = Auto by date. A device preference: logout keeps it. */
+    var themeChoice by mutableStateOf(AbsTheme.fromKey(prefs.getString("theme_override", null))); private set
+    var theme by mutableStateOf(resolveTheme(null, themeChoice)); private set
+
+    fun chooseTheme(choice: AbsTheme?) {
+        themeChoice = choice
+        prefs.edit().apply { if (choice == null) remove("theme_override") else putString("theme_override", choice.name.lowercase()) }.apply()
+        refreshTheme()
+    }
 
     /** Re-checks the date (launch and every onStart, so a TV left on overnight picks up the change). */
     fun refreshTheme() {
-        theme = forcedTheme ?: themeFor()
+        theme = resolveTheme(forcedTheme, themeChoice)
     }
 
     val savedServer: String get() = store.server

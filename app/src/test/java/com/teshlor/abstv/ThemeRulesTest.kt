@@ -79,4 +79,17 @@ class ThemeRulesTest {
         assertEquals(null, AbsTheme.fromKey("nope"))
         assertEquals(null, AbsTheme.fromKey(null))
     }
+
+    @Test fun resolutionOrderIsDebugThenSavedThenDate() {
+        val halloween = GregorianCalendar(2026, 9, 26)
+        assertEquals(AbsTheme.HALLOWEEN, resolveTheme(null, null, halloween))
+        assertEquals(AbsTheme.WINTER, resolveTheme(null, AbsTheme.WINTER, halloween))
+        assertEquals(AbsTheme.SPRING, resolveTheme(AbsTheme.SPRING, AbsTheme.WINTER, halloween))
+        assertEquals(AbsTheme.SPRING, resolveTheme(AbsTheme.SPRING, null, halloween))
+    }
+
+    @Test fun pickerListsEveryThemeOnce() {
+        assertEquals(AbsTheme.entries.toSet(), ThemePickerOrder.toSet())
+        assertEquals(AbsTheme.entries.size, ThemePickerOrder.size)
+    }
 }
