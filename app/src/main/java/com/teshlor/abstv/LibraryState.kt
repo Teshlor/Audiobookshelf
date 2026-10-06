@@ -81,11 +81,11 @@ class LibraryTabState(
      * Loads pages as needed and returns the index of the first book of [letter] (see [firstIndexForLetter]),
      * or null if the list changed meanwhile, a page failed, or the list is empty.
      */
-    suspend fun indexForLetter(letter: Char): Int? {
+    suspend fun indexForLetter(letter: Char, settings: SortingSettings = SortingSettings.OFF): Int? {
         val v = version
         while (true) {
             val s = pager.state.value
-            firstIndexForLetter(s.items, letter, sort, s.endReached)?.let { return it }
+            firstIndexForLetter(s.items, letter, sort, s.endReached, settings)?.let { return it }
             if (v != version || s.error != null || s.endReached) return null
             pager.loadMore()
             // A page is in flight (ours or the grid's): wait for the list to move on.

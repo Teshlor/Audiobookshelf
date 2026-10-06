@@ -67,14 +67,28 @@ fun libraryOverline(libraryName: String, filter: LibraryFilter, total: Int, load
 
 const val JUMP_LETTERS = "#ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
-/** Leading "The ", "A ", "An " removed (the server can be set to sort that way). Never returns an empty string. */
-fun stripArticle(title: String): String {
-    val t = title.trim()
-    val stripped = ARTICLE.replace(t, "")
-    return if (stripped.isBlank()) t else stripped
+/**
+ * The server's "ignore prefixes when sorting" setting (`serverSettings.sortingIgnorePrefix` / `sortingPrefixes`).
+ * Off by default, which is also what we assume when the settings can't be read.
+ */
+data class SortingSettings(val ignorePrefix: Boolean = false, val prefixes: List<String> = listOf("the", "a")) {
+    companion object { val OFF = SortingSettings() }
 }
 
-private val ARTICLE = Regex("^(the|an|a)[ \\t]+",RegexOption.IGNORE_CASE)
+/** The title as the server files it: with ignore-prefix on, a leading "<prefix> " (server's list) is dropped. */
+fun sortKeyTitle(title: String, settings: SortingSettings): String {
+    val t = title.trim()
+    if (!settings.ignorePrefix) return t
+    for (p in settings.prefixes) {
+        val prefix = p.trim()
+        if (prefix.isEmpty()) continue
+        if (t.length > prefix.length && t.startsWith(prefix, ignoreCase = true) && t[prefix.length].isWhitespace()) {
+            val rest = t.substring(prefix.length).trim()
+            if (rest.isNotEmpty()) return rest
+        }
+    }
+    return t
+}
 
 /** A-Z for letters (accents folded: "Émile" is E), '#' for digits, symbols, other scripts and blanks. */
 fun letterOf(text: String): Char {
@@ -84,34 +98,27 @@ fun letterOf(text: String): Char {
 }
 
 /**
- * The letters a book can be filed under in the current ordering. Title sort: the plain first letter ([a]) and the
- * one after dropping a leading article ([b]), because whether the server ignores "The" is a server setting we
- * cannot see. Author sort: the first letter of "Last, First" for both.
+ * The letter a book is filed under in the current ordering. Title sort: the first letter of the title, after dropping
+ * a leading prefix only when the server is set to ignore them ([settings]); otherwise the raw first letter, exactly as
+ * the server sorts. Author sort: the first letter of "Last, First".
  */
-data class LetterKey(val a: Char, val b: Char)
-
-fun letterKey(book: Book, sort: LibrarySort): LetterKey = when (sort) {
-    LibrarySort.AUTHOR -> {
-        val src = book.media.metadata.authorNameLF?.takeIf { it.isNotBlank() } ?: book.author
-        letterOf(src).let { LetterKey(it, it) }
-    }
-    else -> LetterKey(letterOf(book.title), letterOf(stripArticle(book.title)))
+fun letterKey(book: Book, sort: LibrarySort, settings: SortingSettings = SortingSettings.OFF): Char = when (sort) {
+    LibrarySort.AUTHOR -> letterOf(book.media.metadata.authorNameLF?.takeIf { it.isNotBlank() } ?: book.author)
+    else -> letterOf(sortKeyTitle(book.title, settings))
 }
 
 /**
  * Index in [books] (already in list order) of the first book of [letter], or of the first book past it when the
  * letter has none. Returns null when more pages must be loaded to decide ([complete] = false), and the last index
  * (letters beyond the final book) once everything is loaded. Null for an empty list.
- *
- * Ascending: a book is "past" the letter when both its keys sort after it; descending: when both sort before it.
- * Requiring both keys keeps a misfiled "The Alloy of Law" from ending the scan early.
  */
-fun firstIndexForLetter(books: List<Book>, letter: Char, spec: SortSpec, complete: Boolean): Int? {
+fun firstIndexForLetter(
+    books: List<Book>, letter: Char, spec: SortSpec, complete: Boolean, settings: SortingSettings = SortingSettings.OFF,
+): Int? {
     books.forEachIndexed { i, b ->
-        val k = letterKey(b, spec.sort)
-        if (k.a == letter || k.b == letter) return i
-        val past = if (spec.desc) maxOf(k.a, k.b) < letter else minOf(k.a, k.b) > letter
-        if (past) return i
+        val k = letterKey(b, spec.sort, settings)
+        if (k == letter) return i
+        if (if (spec.desc) k < letter else k > letter) return i
     }
     return if (complete) books.lastIndex.takeIf { it >= 0 } else null
 }

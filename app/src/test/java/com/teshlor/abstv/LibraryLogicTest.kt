@@ -9,6 +9,7 @@ class LibraryLogicTest {
         Book("id-$title", Media(Metadata(title = title, authorName = author, authorNameLF = lf)))
 
     private val asc = SortSpec(LibrarySort.TITLE, false)
+    private val on = SortingSettings(ignorePrefix = true, prefixes = listOf("the", "a"))
 
     // ---- sort persistence ----
     @Test fun sortRoundTrips() {
@@ -47,10 +48,17 @@ class LibraryLogicTest {
         assertEquals('#', letterOf("  "))
         assertEquals('#', letterOf("世界"))
         assertEquals('Q', letterOf("\"Quoted\""))
-        assertEquals("Alloy of Law", stripArticle("The Alloy of Law"))
-        assertEquals("Apple", stripArticle("An Apple"))
-        assertEquals("Anathem", stripArticle("Anathem"))
-        assertEquals("The", stripArticle("The"))
+    }
+
+    @Test fun sortKeyTitleOnlyStripsWhenServerIgnoresPrefixes() {
+        assertEquals("The Alloy of Law", sortKeyTitle("The Alloy of Law", SortingSettings.OFF))
+        assertEquals("Alloy of Law", sortKeyTitle("The Alloy of Law", on))
+        assertEquals("Apple", sortKeyTitle("A Apple", on))
+        assertEquals("An Apple", sortKeyTitle("An Apple", on)) // "an" is not in the default prefix list
+        assertEquals("Apple", sortKeyTitle("An Apple", SortingSettings(true, listOf("an"))))
+        assertEquals("Anathem", sortKeyTitle("Anathem", on))
+        assertEquals("The", sortKeyTitle("The", on))
+        assertEquals("Theory", sortKeyTitle("Theory", on)) // needs a space after the prefix
     }
 
     // ---- A-Z jump ----
@@ -58,32 +66,43 @@ class LibraryLogicTest {
     private val books = titles.map { book(it) }
 
     @Test fun jumpFindsFirstOfLetter() {
-        assertEquals(1, firstIndexForLetter(books, 'A', asc, true))
-        assertEquals(3, firstIndexForLetter(books, 'B', asc, true))
-        assertEquals(0, firstIndexForLetter(books, '#', asc, true))
+        assertEquals(1, firstIndexForLetter(books, 'A', asc, true, on))
+        assertEquals(3, firstIndexForLetter(books, 'B', asc, true, on))
+        assertEquals(0, firstIndexForLetter(books, '#', asc, true, on))
     }
 
     @Test fun jumpToMissingLetterLandsOnNextBook() {
-        assertEquals(8, firstIndexForLetter(books, 'N', asc, true))
-        assertEquals(9, firstIndexForLetter(books, 'Y', asc, true)) // no Y: first book past it is "Zero"
+        assertEquals(8, firstIndexForLetter(books, 'N', asc, true, on))
+        assertEquals(9, firstIndexForLetter(books, 'Y', asc, true, on)) // no Y: first book past it is "Zero"
     }
 
-    @Test fun articleIsMatchedUnderItsStrippedLetter() {
-        // Sorted by plain title, "The Martian" sits among the Ts but is still reachable as an M when nothing earlier is.
-        val list = listOf("Alloy", "Blade", "The Martian").map { book(it) }
-        assertEquals(2, firstIndexForLetter(list, 'M', asc, true))
-        // Server ignoring articles: "The Alloy" sits among the As and must not end a scan for B early.
+    @Test fun prefixIgnoredOnlyWhenServerSettingIsOn() {
+        // Server ignores "The": "The Alloy of Law" is filed under A, so a scan for B must pass it, and A finds it.
         val ignoring = listOf("The Alloy", "Arcanum", "Blade").map { book(it) }
-        assertEquals(2, firstIndexForLetter(ignoring, 'B', asc, true))
+        assertEquals(2, firstIndexForLetter(ignoring, 'B', asc, true, on))
+        assertEquals(0, firstIndexForLetter(ignoring, 'A', asc, true, on))
+        // Server not ignoring: the raw order is Arcanum, Blade, The Alloy; T finds "The Alloy", A does not match it.
+        val raw = listOf("Arcanum", "Blade", "The Alloy").map { book(it) }
+        assertEquals(2, firstIndexForLetter(raw, 'T', asc, true))
+        assertEquals(0, firstIndexForLetter(raw, 'A', asc, true))
+    }
+
+    @Test fun proofCaseTheAlloyOfLaw() {
+        val list = listOf("The Alloy of Law", "Brandon's Notes", "The Final Empire", "Tress of the Emerald Sea", "The Way of Kings").map { book(it) }
+        // Server ignores "The" (list order is Alloy, Brandon's, Final, Tress, Way): T is "Tress" at index 3, not the
+        // raw-T "The Alloy of Law" at index 0 that matching either key would have produced.
+        assertEquals(3, firstIndexForLetter(list, 'T', asc, true, on))
+        // Server not ignoring: the raw first letter is what the server sorted by, so the first T is index 0.
+        assertEquals(0, firstIndexForLetter(list, 'T', asc, true, SortingSettings.OFF))
     }
 
     @Test fun needsMorePagesWhenNotReachedAndIncomplete() {
-        assertNull(firstIndexForLetter(books.take(5), 'M', asc, false))
+        assertNull(firstIndexForLetter(books.take(5), 'M', asc, false, on))
         assertNull(firstIndexForLetter(emptyList(), 'M', asc, false))
     }
 
     @Test fun pastTheEndOnceCompleteLandsOnLastBook() {
-        assertEquals(4, firstIndexForLetter(books.take(5), 'Z', asc, true)) // fully loaded, no Z: last book
+        assertEquals(4, firstIndexForLetter(books.take(5), 'Z', asc, true, on)) // fully loaded, no Z: last book
         assertNull(firstIndexForLetter(emptyList(), 'A', asc, true))
     }
 

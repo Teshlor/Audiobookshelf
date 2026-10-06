@@ -43,6 +43,14 @@ internal object AbsParse {
     fun collectionPage(body: String): Page<BookCollection> =
         json.decodeFromString(Page.serializer(BookCollection.serializer()), body)
 
+    /** `serverSettings` of /api/authorize: sortingIgnorePrefix + sortingPrefixes (upstream default prefixes are "the" and "a"). */
+    fun sortingSettings(body: String): SortingSettings {
+        val ss = json.parseToJsonElement(body).jsonObject["serverSettings"]?.jsonObject ?: return SortingSettings.OFF
+        val ignore = ss["sortingIgnorePrefix"]?.jsonPrimitive?.content == "true"
+        val prefixes = ss["sortingPrefixes"]?.jsonArray?.mapNotNull { it.jsonPrimitive.content.lowercase().ifBlank { null } }
+        return SortingSettings(ignore, prefixes?.takeIf { it.isNotEmpty() } ?: SortingSettings.OFF.prefixes)
+    }
+
     /** Total only; the cheap way to count without decoding items. */
     fun total(body: String): Int = json.parseToJsonElement(body).jsonObject["total"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0
 
@@ -192,6 +200,10 @@ class AbsApi(serverUrl: String, val auth: AuthSession? = null) {
         parse(exec(get(apiUrl("api/libraries/$libraryId/search", "q" to q, "limit" to limit.toString()))), AbsParse::search)
 
     /** The signed-in user: username plus per-item listening progress. */
+    /** Whether the server files titles ignoring "The"/"A" (needed for the Library A-Z jump). Works for restored sessions too. */
+    suspend fun sortingSettings(): SortingSettings =
+        parse(exec(post("/api/authorize", buildJsonObject { })), AbsParse::sortingSettings)
+
     suspend fun me(): Me = parse(exec(get("/api/me")), AbsParse::me)
 
     /** Progress lookup for cards: time left, progress bar, finished state. */

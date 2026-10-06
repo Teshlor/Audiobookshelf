@@ -42,6 +42,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /** Home shelves in the server's order, and the signed-in user's per-book progress (empty if /api/me failed). */
     var shelves by mutableStateOf<List<Shelf>>(emptyList()); private set
     var progress by mutableStateOf(ProgressMap()); private set
+
+    /** Server's ignore-prefix sorting settings (for the A-Z jump). Off until read from /api/authorize. */
+    var sortingSettings by mutableStateOf(SortingSettings.OFF); private set
     var selectedBook by mutableStateOf<Book?>(null); private set
 
     val player = PlayerController(app)
@@ -136,6 +139,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         username = ""
         libraries = emptyList(); clearLibraryData()
         selectedLibrary = null
+        sortingSettings = SortingSettings.OFF
         collectionsCache = null
         lastFocused.clear()
         error = null
@@ -205,6 +209,17 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             loadLibrary(a, lib)
         }
         lastLoadedAt = System.currentTimeMillis()
+        loadSortingSettings(a)
+    }
+
+    private suspend fun loadSortingSettings(a: AbsApi) {
+        try {
+            sortingSettings = a.sortingSettings()
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // keep the previous value (default off)
+        }
     }
 
     /** Re-reads /api/me into the shared [progress] map (every tab's cards read it) and returns it. Throws on failure. */

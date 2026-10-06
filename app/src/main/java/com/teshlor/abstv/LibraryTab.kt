@@ -37,6 +37,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
@@ -106,6 +107,9 @@ fun LibraryTab(vm: AppViewModel) {
     var focusTick by remember { mutableIntStateOf(0) }
     var focusFirst by remember { mutableStateOf(false) }   // set by a sort/filter change; honoured once page 0 lands
     var initialDone by remember { mutableStateOf(false) }
+    val jumpJob = remember { object { var value: kotlinx.coroutines.Job? = null } }
+    val flag = remember { FocusFlag() }
+    val railOpen by rememberUpdatedState(LocalRailOpen.current)
 
     fun focusCard(id: String) { focusId = id; focusTick++ }
 
@@ -129,11 +133,13 @@ fun LibraryTab(vm: AppViewModel) {
             focusCard(ps.items.first().id)
         } else if (!initialDone) {
             // Entering the tab: back on the card the user left (after Detail -> Back), else the first book.
+            initialDone = true
+            // Like EntryFocus: never grab focus from the open rail, or from a card the user already reached.
+            if (railOpen || flag.has) return@LaunchedEffect
             val items = ps.items
             val idx = items.indexOfFirst { it.id == vm.lastFocused[screenKey] }.takeIf { it >= 0 } ?: 0
             withFrameNanos { }   // let a restored scroll position lay out before deciding whether to scroll
             if (gridState.layoutInfo.visibleItemsInfo.none { it.index == idx }) gridState.scrollToItem(idx)
-            initialDone = true
             focusCard(items[idx].id)
         }
     }
@@ -147,7 +153,7 @@ fun LibraryTab(vm: AppViewModel) {
     val currentLetter by remember(state) {
         derivedStateOf {
             val book = ps.items.getOrNull(gridState.firstVisibleItemIndex)
-            book?.let { letterKey(it, state.sort.sort).a }
+            book?.let { letterKey(it, state.sort.sort, vm.sortingSettings) }
         }
     }
 
@@ -195,7 +201,7 @@ fun LibraryTab(vm: AppViewModel) {
                                 progress = vm.progress[b.id],
                                 onClick = { vm.openBook(b) },
                                 onFocused = { vm.lastFocused[screenKey] = b.id },
-                                modifier = if (b.id == focusId) Modifier.focusRequester(target) else Modifier,
+                                modifier = (if (b.id == focusId) Modifier.focusRequester(target) else Modifier).trackFocus(flag),
                             )
                         }
                         if (ps.error != null) {
@@ -218,8 +224,10 @@ fun LibraryTab(vm: AppViewModel) {
                 current = currentLetter,
                 modifier = Modifier.align(Alignment.CenterEnd).padding(end = 12.dp),
             ) { letter ->
-                scope.launch {
-                    val idx = state.indexForLetter(letter) ?: return@launch
+                // Pressing letters quickly: the last one pressed wins, so cancel the scan still running for the previous one.
+                jumpJob.value?.cancel()
+                jumpJob.value = scope.launch {
+                    val idx = state.indexForLetter(letter, vm.sortingSettings) ?: return@launch
                     val book = state.pager.state.value.items.getOrNull(idx) ?: return@launch
                     gridState.scrollToItem(idx)
                     focusCard(book.id)

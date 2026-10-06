@@ -227,4 +227,14 @@ class AbsParseTest {
             assertEquals(404, e.code)
         }
     }
+
+    @Test fun sortingSettingsFromAuthorizePayload() {
+        val on = AbsParse.sortingSettings("""{"user":{},"serverSettings":{"sortingIgnorePrefix":true,"sortingPrefixes":["The","A","An"]}}""")
+        assertEquals(SortingSettings(true, listOf("the", "a", "an")), on)
+        val off = AbsParse.sortingSettings("""{"serverSettings":{"sortingIgnorePrefix":false,"sortingPrefixes":["the"]}}""")
+        assertEquals(false, off.ignorePrefix)
+        assertEquals(SortingSettings.OFF, AbsParse.sortingSettings("""{"user":{}}"""))
+        // ignore on but no list: upstream defaults
+        assertEquals(SortingSettings(true, listOf("the", "a")), AbsParse.sortingSettings("""{"serverSettings":{"sortingIgnorePrefix":true}}"""))
+    }
 }
