@@ -14,5 +14,4 @@ import androidx.tv.material3.Text
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("$name: coming soon", color = LocalAbsColors.current.muted) }
 }
 
-@Composable fun SearchTab() = Soon("Search")
 @Composable fun LibraryTab() = Soon("Library")

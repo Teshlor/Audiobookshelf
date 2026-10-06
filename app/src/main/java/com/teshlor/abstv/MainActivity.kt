@@ -97,7 +97,7 @@ class MainActivity : ComponentActivity() {
                     when (s.tab) {
                         Tab.HOME -> HomeScreen(vm)
                         Tab.SETTINGS -> SettingsTab(vm)
-                        Tab.SEARCH -> SearchTab()
+                        Tab.SEARCH -> SearchTab(vm)
                         Tab.LIBRARY -> LibraryTab()
                         Tab.SERIES -> SeriesTab(vm)
                         Tab.COLLECTIONS -> CollectionsTab(vm)

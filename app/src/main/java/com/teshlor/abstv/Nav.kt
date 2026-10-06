@@ -9,7 +9,7 @@ import androidx.compose.runtime.setValue
  * tab is built. SETTINGS lives in the rail's bottom group, the rest in the nav group.
  */
 enum class Tab(val label: String, val enabled: Boolean) {
-    SEARCH("Search", false),
+    SEARCH("Search", true),
     HOME("Home", true),
     LIBRARY("Library", false),
     SERIES("Series", true),
