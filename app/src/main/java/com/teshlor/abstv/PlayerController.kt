@@ -44,6 +44,7 @@ class PlayerController(context: Context) {
     private var offsets: List<Double> = emptyList()
     private var listened = 0.0
     private var tickJob: Job? = null
+    private var syncInFlight = false
 
     suspend fun start(api: AbsApi, itemId: String) {
         stop()
@@ -85,24 +86,39 @@ class PlayerController(context: Context) {
         }
     }
 
-    private fun syncNow(close: Boolean) {
+    private fun syncNow(close: Boolean, force: Boolean = false) {
         val a = api ?: return
         val id = sessionId ?: return
+        if (!close && !force && syncInFlight) return
         val pos = globalPosition()
-        val l = listened
+        // If a sync is already in flight its time is on the wire; don't send it twice.
+        val l = if (syncInFlight) 0.0 else listened
         val d = duration
-        listened = 0.0
+        if (close) listened = 0.0 else syncInFlight = true
         scope.launch {
-            runCatching {
+            try {
                 if (close) a.close(id, pos, l, d) else a.sync(id, pos, l, d)
+                // Only drop the time that was actually sent; a failure carries it forward.
+                if (!close) listened = (listened - l).coerceAtLeast(0.0)
+            } catch (_: Exception) {
+            } finally {
+                if (!close) syncInFlight = false
             }
         }
+    }
+
+    /** Called when the app leaves the foreground: pause (no background playback) and save the position. */
+    fun pauseAndSync() {
+        if (!active) return
+        player.pause()
+        isPlaying = false
+        syncNow(close = false, force = true)
     }
 
     fun togglePlay() {
         if (player.isPlaying) {
             player.pause()
-            syncNow(close = false)
+            syncNow(close = false, force = true)
         } else player.play()
         isPlaying = player.isPlaying
     }

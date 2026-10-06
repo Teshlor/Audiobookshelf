@@ -29,6 +29,11 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onStop() {
+        vm.player.pauseAndSync()
+        super.onStop()
+    }
+
     @Composable
     private fun Root() {
         BackHandler(enabled = vm.screen == Screen.Detail || vm.screen == Screen.Player) { vm.back() }
