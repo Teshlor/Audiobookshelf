@@ -1,0 +1,48 @@
+{
+ "libraries": [
+  {
+   "id": "lib-1",
+   "name": "Audiobooks",
+   "folders": [
+    {
+     "id": "f1",
+     "fullPath": "/audiobooks",
+     "libraryId": "lib-1"
+    }
+   ],
+   "displayOrder": 1,
+   "icon": "database",
+   "mediaType": "book",
+   "provider": "audible",
+   "settings": {
+    "coverAspectRatio": 1
+   },
+   "createdAt": 1,
+   "lastUpdate": 2
+  },
+  {
+   "id": "lib-2",
+   "name": "Ebooks",
+   "folders": [],
+   "displayOrder": 2,
+   "icon": "database",
+   "mediaType": "book",
+   "provider": "google",
+   "settings": {},
+   "createdAt": 1,
+   "lastUpdate": 2
+  },
+  {
+   "id": "lib-3",
+   "name": "Podcasts",
+   "folders": [],
+   "displayOrder": 3,
+   "icon": "podcast",
+   "mediaType": "podcast",
+   "provider": "itunes",
+   "settings": {},
+   "createdAt": 1,
+   "lastUpdate": 2
+  }
+ ]
+}

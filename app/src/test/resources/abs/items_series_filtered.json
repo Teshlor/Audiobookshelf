@@ -1,0 +1,247 @@
+{
+ "results": [
+  {
+   "id": "li-a",
+   "ino": "1",
+   "libraryId": "lib-1",
+   "folderId": "f1",
+   "path": "/audiobooks/Saga 1",
+   "addedAt": 1700000000000,
+   "updatedAt": 1700000001000,
+   "isMissing": false,
+   "mediaType": "book",
+   "media": {
+    "id": "b-li-a",
+    "metadata": {
+     "title": "Saga 1",
+     "titleIgnorePrefix": "Saga 1",
+     "subtitle": null,
+     "authorName": "A. Author",
+     "authorNameLF": "Author, A.",
+     "narratorName": "N. Narrator",
+     "seriesName": null,
+     "genres": [
+      "Fantasy"
+     ],
+     "publishedYear": "2020",
+     "publisher": null,
+     "description": "About Saga 1",
+     "isbn": null,
+     "asin": null,
+     "language": null,
+     "explicit": false,
+     "abridged": false,
+     "series": {
+      "id": "s-1",
+      "name": "Saga",
+      "sequence": "1"
+     }
+    },
+    "coverPath": "/audiobooks/Saga 1/cover.jpg",
+    "tags": [],
+    "numTracks": 1,
+    "numAudioFiles": 1,
+    "numChapters": 0,
+    "duration": 3600.0,
+    "size": 123456
+   },
+   "numFiles": 2,
+   "size": 123456
+  },
+  {
+   "id": "li-b",
+   "ino": "1",
+   "libraryId": "lib-1",
+   "folderId": "f1",
+   "path": "/audiobooks/Saga 1.5",
+   "addedAt": 1700000000000,
+   "updatedAt": 1700000001000,
+   "isMissing": false,
+   "mediaType": "book",
+   "media": {
+    "id": "b-li-b",
+    "metadata": {
+     "title": "Saga 1.5",
+     "titleIgnorePrefix": "Saga 1.5",
+     "subtitle": null,
+     "authorName": "A. Author",
+     "authorNameLF": "Author, A.",
+     "narratorName": "N. Narrator",
+     "seriesName": null,
+     "genres": [
+      "Fantasy"
+     ],
+     "publishedYear": "2020",
+     "publisher": null,
+     "description": "About Saga 1.5",
+     "isbn": null,
+     "asin": null,
+     "language": null,
+     "explicit": false,
+     "abridged": false,
+     "series": {
+      "id": "s-1",
+      "name": "Saga",
+      "sequence": "1.5"
+     }
+    },
+    "coverPath": "/audiobooks/Saga 1.5/cover.jpg",
+    "tags": [],
+    "numTracks": 1,
+    "numAudioFiles": 1,
+    "numChapters": 0,
+    "duration": 3600.0,
+    "size": 123456
+   },
+   "numFiles": 2,
+   "size": 123456
+  },
+  {
+   "id": "li-c",
+   "ino": "1",
+   "libraryId": "lib-1",
+   "folderId": "f1",
+   "path": "/audiobooks/Saga 2",
+   "addedAt": 1700000000000,
+   "updatedAt": 1700000001000,
+   "isMissing": false,
+   "mediaType": "book",
+   "media": {
+    "id": "b-li-c",
+    "metadata": {
+     "title": "Saga 2",
+     "titleIgnorePrefix": "Saga 2",
+     "subtitle": null,
+     "authorName": "A. Author",
+     "authorNameLF": "Author, A.",
+     "narratorName": "N. Narrator",
+     "seriesName": null,
+     "genres": [
+      "Fantasy"
+     ],
+     "publishedYear": "2020",
+     "publisher": null,
+     "description": "About Saga 2",
+     "isbn": null,
+     "asin": null,
+     "language": null,
+     "explicit": false,
+     "abridged": false,
+     "series": {
+      "id": "s-1",
+      "name": "Saga",
+      "sequence": "2"
+     }
+    },
+    "coverPath": "/audiobooks/Saga 2/cover.jpg",
+    "tags": [],
+    "numTracks": 1,
+    "numAudioFiles": 1,
+    "numChapters": 0,
+    "duration": 3600.0,
+    "size": 123456
+   },
+   "numFiles": 2,
+   "size": 123456
+  },
+  {
+   "id": "li-d",
+   "ino": "1",
+   "libraryId": "lib-1",
+   "folderId": "f1",
+   "path": "/audiobooks/Saga 10",
+   "addedAt": 1700000000000,
+   "updatedAt": 1700000001000,
+   "isMissing": false,
+   "mediaType": "book",
+   "media": {
+    "id": "b-li-d",
+    "metadata": {
+     "title": "Saga 10",
+     "titleIgnorePrefix": "Saga 10",
+     "subtitle": null,
+     "authorName": "A. Author",
+     "authorNameLF": "Author, A.",
+     "narratorName": "N. Narrator",
+     "seriesName": null,
+     "genres": [
+      "Fantasy"
+     ],
+     "publishedYear": "2020",
+     "publisher": null,
+     "description": "About Saga 10",
+     "isbn": null,
+     "asin": null,
+     "language": null,
+     "explicit": false,
+     "abridged": false,
+     "series": {
+      "id": "s-1",
+      "name": "Saga",
+      "sequence": "10"
+     }
+    },
+    "coverPath": "/audiobooks/Saga 10/cover.jpg",
+    "tags": [],
+    "numTracks": 1,
+    "numAudioFiles": 1,
+    "numChapters": 0,
+    "duration": 3600.0,
+    "size": 123456
+   },
+   "numFiles": 2,
+   "size": 123456
+  },
+  {
+   "id": "li-e",
+   "ino": "1",
+   "libraryId": "lib-1",
+   "folderId": "f1",
+   "path": "/audiobooks/Saga extra",
+   "addedAt": 1700000000000,
+   "updatedAt": 1700000001000,
+   "isMissing": false,
+   "mediaType": "book",
+   "media": {
+    "id": "b-li-e",
+    "metadata": {
+     "title": "Saga extra",
+     "titleIgnorePrefix": "Saga extra",
+     "subtitle": null,
+     "authorName": "A. Author",
+     "authorNameLF": "Author, A.",
+     "narratorName": "N. Narrator",
+     "seriesName": null,
+     "genres": [
+      "Fantasy"
+     ],
+     "publishedYear": "2020",
+     "publisher": null,
+     "description": "About Saga extra",
+     "isbn": null,
+     "asin": null,
+     "language": null,
+     "explicit": false,
+     "abridged": false,
+     "series": {
+      "id": "s-1",
+      "name": "Saga",
+      "sequence": null
+     }
+    },
+    "coverPath": "/audiobooks/Saga extra/cover.jpg",
+    "tags": [],
+    "numTracks": 1,
+    "numAudioFiles": 1,
+    "numChapters": 0,
+    "duration": 3600.0,
+    "size": 123456
+   },
+   "numFiles": 2,
+   "size": 123456
+  }
+ ],
+ "total": 5,
+ "limit": 100,
+ "page": 0
+}

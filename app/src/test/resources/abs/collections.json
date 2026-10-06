@@ -1,0 +1,128 @@
+{
+ "results": [
+  {
+   "id": "c-1",
+   "libraryId": "lib-1",
+   "userId": "u1",
+   "name": "Favourites",
+   "description": "Best ones",
+   "books": [
+    {
+     "id": "li-a",
+     "ino": "1",
+     "libraryId": "lib-1",
+     "folderId": "f1",
+     "path": "/audiobooks/Saga 1",
+     "addedAt": 1700000000000,
+     "updatedAt": 1700000001000,
+     "isMissing": false,
+     "mediaType": "book",
+     "media": {
+      "id": "b-li-a",
+      "metadata": {
+       "title": "Saga 1",
+       "titleIgnorePrefix": "Saga 1",
+       "subtitle": null,
+       "authorName": "A. Author",
+       "authorNameLF": "Author, A.",
+       "narratorName": "N. Narrator",
+       "seriesName": null,
+       "genres": [
+        "Fantasy"
+       ],
+       "publishedYear": "2020",
+       "publisher": null,
+       "description": "About Saga 1",
+       "isbn": null,
+       "asin": null,
+       "language": null,
+       "explicit": false,
+       "abridged": false,
+       "series": [
+        {
+         "id": "s-1",
+         "name": "Saga",
+         "sequence": "1"
+        }
+       ],
+       "narrators": [
+        "N. Narrator"
+       ]
+      },
+      "coverPath": "/audiobooks/Saga 1/cover.jpg",
+      "tags": [],
+      "numTracks": 1,
+      "numAudioFiles": 1,
+      "numChapters": 0,
+      "duration": 3600.0,
+      "size": 123456,
+      "audioFiles": [],
+      "chapters": []
+     },
+     "numFiles": 2,
+     "size": 123456
+    },
+    {
+     "id": "li-b",
+     "ino": "1",
+     "libraryId": "lib-1",
+     "folderId": "f1",
+     "path": "/audiobooks/Saga 1.5",
+     "addedAt": 1700000000000,
+     "updatedAt": 1700000001000,
+     "isMissing": false,
+     "mediaType": "book",
+     "media": {
+      "id": "b-li-b",
+      "metadata": {
+       "title": "Saga 1.5",
+       "titleIgnorePrefix": "Saga 1.5",
+       "subtitle": null,
+       "authorName": "A. Author",
+       "authorNameLF": "Author, A.",
+       "narratorName": "N. Narrator",
+       "seriesName": null,
+       "genres": [
+        "Fantasy"
+       ],
+       "publishedYear": "2020",
+       "publisher": null,
+       "description": "About Saga 1.5",
+       "isbn": null,
+       "asin": null,
+       "language": null,
+       "explicit": false,
+       "abridged": false,
+       "series": [
+        {
+         "id": "s-1",
+         "name": "Saga",
+         "sequence": "1"
+        }
+       ],
+       "narrators": [
+        "N. Narrator"
+       ]
+      },
+      "coverPath": "/audiobooks/Saga 1.5/cover.jpg",
+      "tags": [],
+      "numTracks": 1,
+      "numAudioFiles": 1,
+      "numChapters": 0,
+      "duration": 3600.0,
+      "size": 123456,
+      "audioFiles": [],
+      "chapters": []
+     },
+     "numFiles": 2,
+     "size": 123456
+    }
+   ],
+   "lastUpdate": 1,
+   "createdAt": 1
+  }
+ ],
+ "total": 1,
+ "limit": 30,
+ "page": 0
+}

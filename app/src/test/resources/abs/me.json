@@ -1,0 +1,63 @@
+{
+ "id": "u1",
+ "username": "evan",
+ "type": "user",
+ "token": "x",
+ "mediaProgress": [
+  {
+   "id": "p1",
+   "libraryItemId": "li-1",
+   "episodeId": null,
+   "duration": 10000.0,
+   "progress": 0.25,
+   "currentTime": 2500.0,
+   "isFinished": false,
+   "hideFromContinueListening": false,
+   "lastUpdate": 1,
+   "startedAt": 1,
+   "finishedAt": null
+  },
+  {
+   "id": "p2",
+   "libraryItemId": "li-2",
+   "episodeId": null,
+   "duration": 3600.0,
+   "progress": 1.0,
+   "currentTime": 3600.0,
+   "isFinished": true,
+   "lastUpdate": 1,
+   "startedAt": 1,
+   "finishedAt": 2
+  },
+  {
+   "id": "p3",
+   "libraryItemId": "li-3",
+   "episodeId": null,
+   "duration": 3600.0,
+   "progress": 0,
+   "currentTime": 0,
+   "isFinished": false
+  },
+  {
+   "id": "p4",
+   "libraryItemId": "pod-1",
+   "episodeId": "ep-1",
+   "duration": 600.0,
+   "progress": 0.5,
+   "currentTime": 300.0,
+   "isFinished": false
+  },
+  {
+   "id": "p5",
+   "libraryItemId": null,
+   "duration": 600.0,
+   "progress": 0.5,
+   "currentTime": 300.0,
+   "isFinished": false
+  }
+ ],
+ "permissions": {
+  "download": true
+ },
+ "librariesAccessible": []
+}
