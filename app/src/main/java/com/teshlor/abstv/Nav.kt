@@ -13,7 +13,7 @@ enum class Tab(val label: String, val enabled: Boolean) {
     HOME("Home", true),
     LIBRARY("Library", false),
     SERIES("Series", false),
-    COLLECTIONS("Collections", false),
+    COLLECTIONS("Collections", true),
     SETTINGS("Settings", true),
 }
 
@@ -23,6 +23,7 @@ sealed interface Screen {
 
     data object Login : Screen { override val key = "login" }
     data class Browse(val tab: Tab) : Screen { override val key get() = "tab:${tab.name}" }
+    data class CollectionBooks(val collection: BookCollection) : Screen { override val key get() = "collection:${collection.id}" }
     data object Detail : Screen { override val key = "detail" }
     data object Player : Screen { override val key = "player" }
 }
@@ -35,6 +36,9 @@ class NavStack(initial: Screen = Screen.Login) {
         private set
 
     val size: Int get() = items.size
+
+    /** Snapshot of the stack, bottom first (Root uses it to free saved state of popped screens). */
+    val screens: List<Screen> get() = items.toList()
 
     /** The tab of the nearest Browse screen in the stack (what the rail highlights), or null on Login. */
     val tab: Tab? get() = items.lastOrNull { it is Screen.Browse }?.let { (it as Screen.Browse).tab }

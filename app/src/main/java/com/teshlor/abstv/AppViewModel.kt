@@ -115,6 +115,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         username = ""
         libraries = emptyList(); books = emptyList(); continueListening = emptyList()
         selectedLibrary = null
+        collectionsCache = null
         lastFocused.clear()
         stateEpoch++
         error = null
@@ -122,7 +123,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Settings > Refresh library. */
-    fun refreshLibrary() = loadHome()
+    fun refreshLibrary() {
+        collectionsCache = null
+        loadHome()
+    }
 
     fun loadHome() = launchLoading { loadHomeInternal(api ?: return@launchLoading) }
 
@@ -149,6 +153,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         selectedLibrary = lib
         prefs.edit().putString("library_id", lib.id).apply()
         books = emptyList(); continueListening = emptyList()
+        collectionsCache = null
         lastFocused.clear()
         stateEpoch++
         stack.selectTab(Tab.HOME)
@@ -160,6 +165,21 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         stack.selectTab(tab)
         if (tab == Tab.HOME && System.currentTimeMillis() - lastLoadedAt > 5 * 60_000L) loadHome()
     }
+
+    private var collectionsCache: Pair<String, Pager<BookCollection>>? = null
+
+    /** Collections tab pager for the selected library: created lazily, cached per library, cleared on Refresh, library switch and logout. */
+    fun collectionsPager(): Pager<BookCollection>? {
+        val a = api ?: return null
+        val lib = selectedLibrary ?: return null
+        collectionsCache?.takeIf { it.first == lib.id }?.let { return it.second }
+        val pager = Pager<BookCollection>(viewModelScope, 30) { page, limit -> a.collections(lib.id, page, limit) }
+        collectionsCache = lib.id to pager
+        pager.loadMore()
+        return pager
+    }
+
+    fun openCollection(collection: BookCollection) = stack.push(Screen.CollectionBooks(collection))
 
     fun openBook(book: Book) {
         selectedBook = book
@@ -189,6 +209,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 loadHome() // refresh Continue Listening
             }
             Screen.Detail -> stack.pop()
+            is Screen.CollectionBooks -> stack.pop()
             else -> Unit
         }
     }

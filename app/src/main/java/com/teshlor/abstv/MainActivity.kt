@@ -76,6 +76,7 @@ class MainActivity : ComponentActivity() {
         ThemeDecor(vm.theme, showBand = vm.screen == Screen.Login || vm.screen == Screen.Browse(Tab.HOME))
         // Per-screen saved state keeps scroll positions across Detail -> Back.
         // The epoch changes on logout and library switch, so Home starts fresh (scroll position) after either.
+        PruneCollectionState(vm, saveable)
         saveable.SaveableStateProvider("${vm.screen.key}#${vm.stateEpoch}") {
             when (val s = vm.screen) {
                 Screen.Login -> LoginScreen(vm)
@@ -86,9 +87,10 @@ class MainActivity : ComponentActivity() {
                         Tab.SEARCH -> SearchTab()
                         Tab.LIBRARY -> LibraryTab()
                         Tab.SERIES -> SeriesTab()
-                        Tab.COLLECTIONS -> CollectionsTab()
+                        Tab.COLLECTIONS -> CollectionsTab(vm)
                     }
                 }
+                is Screen.CollectionBooks -> Shell(vm) { CollectionBooksScreen(vm, s.collection) }
                 Screen.Detail -> DetailScreen(vm)
                 Screen.Player -> PlayerScreen(vm)
             }

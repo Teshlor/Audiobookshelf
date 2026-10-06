@@ -103,6 +103,7 @@ fun Shell(vm: AppViewModel, content: @Composable () -> Unit) {
     BackHandler(enabled = !confirmLogout) {
         when {
             switching -> { switching = false; scope.launch { requesters.getValue(tab).requestWhenReady() } }
+            !open && vm.stack.size > 1 -> vm.back() // a screen pushed over a tab (e.g. a collection) pops first
             !open -> openRail()
             tab != Tab.HOME -> { vm.selectTab(Tab.HOME); closeRailToContent() }
             else -> activity?.finish()
