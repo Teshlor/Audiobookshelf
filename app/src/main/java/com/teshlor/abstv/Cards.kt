@@ -20,7 +20,11 @@ import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.foundation.gestures.ScrollableState
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameNanos
+import kotlinx.coroutines.flow.first
 import androidx.compose.runtime.rememberUpdatedState
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.setValue
@@ -119,17 +123,27 @@ fun EntryFocus(ready: Boolean, target: FocusRequester, flag: FocusFlag, prepare:
 }
 
 /**
- * Runs [action] when focus ENTERS this container (not on every move inside it). Lazy lists only scroll far enough to
- * show the focused card, which strands the heading above it; call a scroll-to-heading here for pivot-like behaviour.
- * No per-frame work: it is one focus callback, and it keeps its "had focus" flag outside snapshot state.
+ * Waits until [this] has stopped scrolling. Focus first triggers the lazy list's own minimal bring-into-view scroll,
+ * and a heading reveal started before it finishes is cancelled by it (scrolls are mutually exclusive); so reveal after.
+ */
+suspend fun ScrollableState.awaitScrollIdle() {
+    withFrameNanos { }
+    snapshotFlow { isScrollInProgress }.first { !it }
+}
+
+/**
+ * Runs [action] when focus ENTERS this container (not on every move inside it), once [state] has settled from the
+ * focus scroll. Lazy lists only scroll far enough to show the focused card, which strands the heading above it; call a
+ * scroll-to-heading here for pivot-like behaviour. No per-frame work: one focus callback, and the "had focus" flag is
+ * kept outside snapshot state.
  */
 @Composable
-fun Modifier.onFocusEntered(action: suspend () -> Unit): Modifier {
+fun Modifier.onFocusEntered(state: ScrollableState, action: suspend () -> Unit): Modifier {
     val scope = rememberCoroutineScope()
     val had = remember { BooleanArray(1) }
     val current by rememberUpdatedState(action)
     return onFocusChanged { s ->
-        if (s.hasFocus && !had[0]) scope.launch { current() }
+        if (s.hasFocus && !had[0]) scope.launch { state.awaitScrollIdle(); current() }
         had[0] = s.hasFocus
     }
 }
