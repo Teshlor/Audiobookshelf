@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Decorative motif for the valentine theme. Generated from design/themes/_src/motifs.py.
+     Anchor to the TOP-END corner of the screen at 380x150dp. Decorative only:
+     contentDescription = null. Soft glows for this theme are drawn in code (see HANDOFF.md). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="380dp"
+    android:height="150dp"
+    android:viewportWidth="760"
+    android:viewportHeight="300">
+    <path
+        android:pathData="M630.2,113.4 C593.4,74.9 606,34.6 629.5,39.6 C639.3,41.7 643.1,52.7 641.4,60.6 C643.1,52.7 651,44.2 660.8,46.3 C684.3,51.3 679.5,93.2 630.2,113.4 Z"
+        android:fillColor="#FFA3B8"
+        android:fillAlpha="0.40" />
+    <path
+        android:pathData="M501,187.2 C470.7,173.5 468.6,147.3 483.4,144.7 C489.5,143.6 494.3,149.1 495.2,154 C494.3,149.1 496.9,142.3 503.1,141.2 C517.8,138.6 524.9,164 501,187.2 Z"
+        android:fillColor="#FFA3B8"
+        android:fillAlpha="0.30" />
+    <path
+        android:pathData="M711.9,232.6 C696.4,212.6 704.4,194.3 715.2,197.8 C719.7,199.2 721,204.6 719.8,208.3 C721,204.6 725.2,201 729.7,202.5 C740.5,206 736.2,225.6 711.9,232.6 Z"
+        android:fillColor="#FFA3B8"
+        android:fillAlpha="0.26" />
+    <path
+        android:pathData="M381.5,88.7 C361,82.7 357.3,66.2 366.5,63.2 C370.3,62 373.8,65.1 374.8,68.1 C373.8,65.1 374.8,60.5 378.6,59.3 C387.8,56.3 394.5,71.8 381.5,88.7 Z"
+        android:fillColor="#FFA3B8"
+        android:fillAlpha="0.22" />
+    <path
+        android:pathData="M579.1,258.4 C566.9,248 569.4,235.6 576.6,236.4 C579.6,236.7 581.1,239.9 580.8,242.2 C581.1,239.9 583.2,237.1 586.2,237.4 C593.3,238.1 593.2,250.8 579.1,258.4 Z"
+        android:fillColor="#FFA3B8"
+        android:fillAlpha="0.18" />
+</vector>

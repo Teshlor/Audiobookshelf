@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Decorative motif for the summer theme. Generated from design/themes/_src/motifs.py.
+     Anchor to the TOP-END corner of the screen at 380x150dp. Decorative only:
+     contentDescription = null. Soft glows for this theme are drawn in code (see HANDOFF.md). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="380dp"
+    android:height="150dp"
+    android:viewportWidth="760"
+    android:viewportHeight="300">
+    <path
+        android:pathData="M538,196 C538,161.8 565.8,134 600,134 C634.2,134 662,161.8 662,196 Z"
+        android:fillColor="#FFC46B"
+        android:fillAlpha="0.44" />
+    <path
+        android:pathData="M300,196 L790,196"
+        android:strokeColor="#52D9C5"
+        android:strokeAlpha="0.22"
+        android:strokeWidth="3.0"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path
+        android:pathData="M554,214 L646,214"
+        android:strokeColor="#FFC46B"
+        android:strokeAlpha="0.32"
+        android:strokeWidth="5.0"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path
+        android:pathData="M570,232 L630,232"
+        android:strokeColor="#FFC46B"
+        android:strokeAlpha="0.24"
+        android:strokeWidth="5.0"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path
+        android:pathData="M582,250 L618,250"
+        android:strokeColor="#FFC46B"
+        android:strokeAlpha="0.16"
+        android:strokeWidth="5.0"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path
+        android:pathData="M360,222 C380,215 400,215 420,222 C440,229 460,229 480,222 C500,215 520,215 540,222 C560,229 580,229 600,222 C620,215 640,215 660,222 C680,229 700,229 720,222 C740,215 760,215 780,222 C800,229 820,229 840,222"
+        android:strokeColor="#52D9C5"
+        android:strokeAlpha="0.18"
+        android:strokeWidth="4.0"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path
+        android:pathData="M410,246 C430,239 450,239 470,246 C490,253 510,253 530,246 C550,239 570,239 590,246 C610,253 630,253 650,246 C670,239 690,239 710,246 C730,253 750,253 770,246 C790,239 810,239 830,246 C850,253 870,253 890,246"
+        android:strokeColor="#52D9C5"
+        android:strokeAlpha="0.13"
+        android:strokeWidth="4.0"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path
+        android:pathData="M460,270 C480,263 500,263 520,270 C540,277 560,277 580,270 C600,263 620,263 640,270 C660,277 680,277 700,270 C720,263 740,263 760,270 C780,277 800,277 820,270"
+        android:strokeColor="#52D9C5"
+        android:strokeAlpha="0.09"
+        android:strokeWidth="4.0"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+</vector>

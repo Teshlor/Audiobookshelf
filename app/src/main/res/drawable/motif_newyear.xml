@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Decorative motif for the newyear theme. Generated from design/themes/_src/motifs.py.
+     Anchor to the TOP-END corner of the screen at 380x150dp. Decorative only:
+     contentDescription = null. Soft glows for this theme are drawn in code (see HANDOFF.md). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="380dp"
+    android:height="150dp"
+    android:viewportWidth="760"
+    android:viewportHeight="300">
+    <path
+        android:pathData="M640,36 C644.2,67.5 650.5,73.8 682,78 C650.5,82.2 644.2,88.5 640,120 C635.8,88.5 629.5,82.2 598,78 C629.5,73.8 635.8,67.5 640,36 Z"
+        android:fillColor="#F1E2B6"
+        android:fillAlpha="0.55" />
+    <path
+        android:pathData="M500,124 C502.6,143.5 506.5,147.4 526,150 C506.5,152.6 502.6,156.5 500,176 C497.4,156.5 493.5,152.6 474,150 C493.5,147.4 497.4,143.5 500,124 Z"
+        android:fillColor="#F1E2B6"
+        android:fillAlpha="0.42" />
+    <path
+        android:pathData="M712,186 C714,201 717,204 732,206 C717,208 714,211 712,226 C710,211 707,208 692,206 C707,204 710,201 712,186 Z"
+        android:fillColor="#F1E2B6"
+        android:fillAlpha="0.40" />
+    <path
+        android:pathData="M372,44 C373.8,57.5 376.5,60.2 390,62 C376.5,63.8 373.8,66.5 372,80 C370.2,66.5 367.5,63.8 354,62 C367.5,60.2 370.2,57.5 372,44 Z"
+        android:fillColor="#F1E2B6"
+        android:fillAlpha="0.34" />
+    <path
+        android:pathData="M566,222 C567.4,232.5 569.5,234.6 580,236 C569.5,237.4 567.4,239.5 566,250 C564.6,239.5 562.5,237.4 552,236 C562.5,234.6 564.6,232.5 566,222 Z"
+        android:fillColor="#F1E2B6"
+        android:fillAlpha="0.30" />
+    <path
+        android:pathData="M290,160 C291.2,169 293,170.8 302,172 C293,173.2 291.2,175 290,184 C288.8,175 287,173.2 278,172 C287,170.8 288.8,169 290,160 Z"
+        android:fillColor="#F1E2B6"
+        android:fillAlpha="0.26" />
+    <path
+        android:pathData="M740,28 C741.2,37 743,38.8 752,40 C743,41.2 741.2,43 740,52 C738.8,43 737,41.2 728,40 C737,38.8 738.8,37 740,28 Z"
+        android:fillColor="#F1E2B6"
+        android:fillAlpha="0.36" />
+    <path
+        android:pathData="M560,37 C561.7,37 563,38.3 563,40 C563,41.7 561.7,43 560,43 C558.3,43 557,41.7 557,40 C557,38.3 558.3,37 560,37 Z"
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="0.50" />
+    <path
+        android:pathData="M430,107.5 C431.4,107.5 432.5,108.6 432.5,110 C432.5,111.4 431.4,112.5 430,112.5 C428.6,112.5 427.5,111.4 427.5,110 C427.5,108.6 428.6,107.5 430,107.5 Z"
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="0.40" />
+    <path
+        android:pathData="M680,137 C681.7,137 683,138.3 683,140 C683,141.7 681.7,143 680,143 C678.3,143 677,141.7 677,140 C677,138.3 678.3,137 680,137 Z"
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="0.45" />
+    <path
+        android:pathData="M330,118 C331.1,118 332,118.9 332,120 C332,121.1 331.1,122 330,122 C328.9,122 328,121.1 328,120 C328,118.9 328.9,118 330,118 Z"
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="0.30" />
+    <path
+        android:pathData="M610,177.5 C611.4,177.5 612.5,178.6 612.5,180 C612.5,181.4 611.4,182.5 610,182.5 C608.6,182.5 607.5,181.4 607.5,180 C607.5,178.6 608.6,177.5 610,177.5 Z"
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="0.35" />
+    <path
+        android:pathData="M460,218 C461.1,218 462,218.9 462,220 C462,221.1 461.1,222 460,222 C458.9,222 458,221.1 458,220 C458,218.9 458.9,218 460,218 Z"
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="0.30" />
+    <path
+        android:pathData="M250,57.5 C251.4,57.5 252.5,58.6 252.5,60 C252.5,61.4 251.4,62.5 250,62.5 C248.6,62.5 247.5,61.4 247.5,60 C247.5,58.6 248.6,57.5 250,57.5 Z"
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="0.30" />
+    <path
+        android:pathData="M750,257.5 C751.4,257.5 752.5,258.6 752.5,260 C752.5,261.4 751.4,262.5 750,262.5 C748.6,262.5 747.5,261.4 747.5,260 C747.5,258.6 748.6,257.5 750,257.5 Z"
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="0.35" />
+</vector>
