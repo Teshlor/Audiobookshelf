@@ -227,7 +227,10 @@ private fun CollectionsGrid(
     LazyVerticalGrid(
         columns = GridCells.Fixed(CardColumns),
         state = gridState,
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier.fillMaxSize().gridRowFocus(
+            gridState, CardColumns, firstCard = 1, lastCard = { items.size },   // item 0 is the header
+            focusedIndex = { items.indexOfFirst { it.id == vm.lastFocused[vm.screen.key] }.takeIf { it >= 0 }?.plus(1) },
+        ),
         contentPadding = PaddingValues(start = ContentStart, top = 32.dp, end = 48.dp, bottom = 48.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp),
@@ -443,7 +446,10 @@ fun CollectionBooksScreen(vm: AppViewModel, collection: BookCollection) {
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(DetailColumns),
                     state = gridState,
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier.fillMaxSize().gridRowFocus(
+                        gridState, DetailColumns, firstCard = 0, lastCard = { books.lastIndex },
+                        focusedIndex = { books.indexOfFirst { it.id == vm.lastFocused[vm.screen.key] }.takeIf { it >= 0 } },
+                    ),
                     contentPadding = PaddingValues(top = 20.dp, bottom = 48.dp),
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
                     verticalArrangement = Arrangement.spacedBy(20.dp),

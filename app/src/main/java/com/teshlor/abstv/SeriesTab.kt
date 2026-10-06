@@ -140,7 +140,10 @@ fun SeriesTab(vm: AppViewModel) {
     LazyVerticalGrid(
         columns = GridCells.Fixed(4),
         state = gridState,
-        modifier = Modifier.fillMaxSize().trackFocus(flag),
+        modifier = Modifier.fillMaxSize().trackFocus(flag).gridRowFocus(
+            gridState, 4, firstCard = 1, lastCard = { st.items.size },   // item 0 is the header
+            focusedIndex = { if (flag.has) st.items.indexOfFirst { it.id == vm.lastFocused[key] }.takeIf { it >= 0 }?.plus(1) else null },
+        ),
         contentPadding = PaddingValues(start = 112.dp, end = 48.dp, top = 32.dp, bottom = 48.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp),

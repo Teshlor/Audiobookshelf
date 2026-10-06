@@ -189,7 +189,10 @@ fun LibraryTab(vm: AppViewModel) {
                     else -> LazyVerticalGrid(
                         columns = GridCells.Fixed(Columns),
                         state = gridState,
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = Modifier.fillMaxSize().gridRowFocus(
+                            gridState, Columns, firstCard = 0, lastCard = { state.pager.state.value.items.lastIndex },
+                            focusedIndex = { state.pager.state.value.items.indexOfFirst { it.id == vm.lastFocused[screenKey] }.takeIf { it >= 0 } },
+                        ),
                         contentPadding = PaddingValues(start = 112.dp, end = 48.dp, top = 12.dp, bottom = 40.dp),
                         horizontalArrangement = Arrangement.spacedBy(16.dp),
                         verticalArrangement = Arrangement.spacedBy(20.dp),

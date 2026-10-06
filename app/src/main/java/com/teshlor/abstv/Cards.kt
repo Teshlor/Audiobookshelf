@@ -21,6 +21,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.foundation.gestures.ScrollableState
+import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
@@ -46,6 +47,17 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.foundation.lazy.grid.LazyGridState
+import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.unit.Dp
+import kotlinx.coroutines.Job
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Border
@@ -329,3 +341,49 @@ fun CoverStack(
         }
     }
 }
+
+/**
+ * Up/Down in a lazy grid. When the row above/below the focused card is entirely off-screen, the grid's own focus search
+ * runs "beyond bounds" and lands on the LAST card of that row (the rightmost one) instead of the card in the same
+ * column. So in that case we scroll one row first (the target row is then on screen), and let the normal geometric
+ * focus search pick the card in the same column. When the target is already (partly) visible the default search is
+ * right and is left alone.
+ *
+ * [focusedIndex] is the focused card's LazyGrid item index (null: focus is not on a card, do nothing); cards are
+ * the items [firstCard] .. [lastCard] (a header item before them shifts [firstCard] to 1).
+ */
+@Composable
+fun Modifier.gridRowFocus(
+    state: LazyGridState, columns: Int, firstCard: Int, lastCard: () -> Int, focusedIndex: () -> Int?, rowGap: Dp = 20.dp,
+): Modifier {
+    val focusManager = LocalFocusManager.current
+    val scope = rememberCoroutineScope()
+    val gapPx = with(LocalDensity.current) { rowGap.toPx() }
+    val job = remember { arrayOfNulls<Job>(1) }
+    val last by rememberUpdatedState(lastCard)
+    val focused by rememberUpdatedState(focusedIndex)
+    return onPreviewKeyEvent { e ->
+        val up = e.key == Key.DirectionUp
+        val down = e.key == Key.DirectionDown
+        if (e.type != KeyEventType.KeyDown || (!up && !down)) return@onPreviewKeyEvent false
+        if (job[0]?.isActive == true) return@onPreviewKeyEvent true   // a row scroll is under way: swallow auto-repeat
+        val idx = focused() ?: return@onPreviewKeyEvent false
+        val lastIdx = last()
+        val target = if (up) idx - columns else minOf(idx + columns, lastIdx)
+        if (idx < firstCard || idx > lastIdx) return@onPreviewKeyEvent false
+        if (up && target < firstCard) return@onPreviewKeyEvent false          // first row: default (goes to the controls above)
+        if (down && (idx - firstCard) / columns == (lastIdx - firstCard) / columns) return@onPreviewKeyEvent false // last row
+        val visible = state.layoutInfo.visibleItemsInfo
+        if (visible.any { it.index == target }) return@onPreviewKeyEvent false // target row on screen: default is right
+        val rows = visible.filter { it.index >= firstCard }.map { it.offset.y }.distinct().sorted()
+        val stride = if (rows.size >= 2) rows[1] - rows[0] else (visible.firstOrNull()?.size?.height ?: 0) + gapPx.toInt()
+        if (stride <= 0) return@onPreviewKeyEvent false
+        job[0] = scope.launch {
+            state.animateScrollBy(if (up) -stride.toFloat() else stride.toFloat())
+            withFrameNanos { }
+            focusManager.moveFocus(if (up) FocusDirection.Up else FocusDirection.Down)
+        }
+        true
+    }
+}
+
