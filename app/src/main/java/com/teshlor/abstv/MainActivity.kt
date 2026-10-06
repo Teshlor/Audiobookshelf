@@ -1,5 +1,6 @@
 package com.teshlor.abstv
 
+import android.annotation.SuppressLint
 import android.content.pm.ApplicationInfo
 import android.os.Bundle
 import android.view.KeyEvent
@@ -110,6 +111,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    @SuppressLint("RestrictedApi")
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         // Handled here, before the view tree: the drawer swallows Right while it is open, which left focus nowhere.
         if (event.keyCode == KeyEvent.KEYCODE_DPAD_RIGHT && event.action == KeyEvent.ACTION_DOWN && vm.railRightHandler?.invoke() == true) return true

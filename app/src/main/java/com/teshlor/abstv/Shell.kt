@@ -105,6 +105,7 @@ fun Shell(vm: AppViewModel, content: @Composable () -> Unit) {
      * request lands nowhere, leaving the next D-pad press to just "wake" focus.
      */
     fun closeRailToContent() {
+        switching = false // Right from the library switcher must not leave the collapsed rail showing library rows
         drawerState.setValue(DrawerValue.Closed)
         scope.launch {
             snapshotFlow { drawerState.currentValue }.first { it == DrawerValue.Closed }
