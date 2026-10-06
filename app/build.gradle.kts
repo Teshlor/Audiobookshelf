@@ -34,6 +34,11 @@ android {
     }
     kotlinOptions {
         jvmTarget = "17"
+        // Strong skipping: lambdas and unstable params (List<T>, JsonElement) become skippable.
+        freeCompilerArgs += listOf(
+            "-P",
+            "plugin:androidx.compose.compiler.plugins.kotlin:experimentalStrongSkipping=true",
+        )
     }
     buildFeatures {
         compose = true
@@ -61,4 +66,6 @@ dependencies {
     implementation("io.coil-kt:coil-compose:2.6.0")
 
     testImplementation("junit:junit:4.13.2")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.1")
+    testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
 }
