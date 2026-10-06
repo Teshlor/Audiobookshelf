@@ -60,9 +60,14 @@ class PlayerController(context: Context) {
 
     suspend fun start(api: AbsApi, itemId: String) {
         stop()
-        val s = api.play(itemId)
+        val s = try {
+            api.play(itemId)
+        } catch (e: AbsHttpException) {
+            // Upstream answers 404 when the item has no audio tracks (e.g. an ebook-only item).
+            if (e.code == 404) error("This item has no audio to play (it may be an ebook).") else throw e
+        }
         generation++
-        if (s.audioTracks.isEmpty()) error("This book has no audio tracks")
+        if (s.audioTracks.isEmpty()) error("This item has no audio to play (it may be an ebook).")
         this.api = api
         sessionId = s.id
         offsets = s.audioTracks.map { it.startOffset }

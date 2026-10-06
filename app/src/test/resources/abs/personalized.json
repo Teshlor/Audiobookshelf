@@ -1,0 +1,538 @@
+[
+ {
+  "id": "continue-listening",
+  "label": "Continue Listening",
+  "labelStringKey": "LabelContinueListening",
+  "type": "book",
+  "entities": [
+   {
+    "id": "li-1",
+    "ino": "1",
+    "libraryId": "lib-1",
+    "folderId": "f1",
+    "path": "/audiobooks/Dune",
+    "addedAt": 1700000000000,
+    "updatedAt": 1700000001000,
+    "isMissing": false,
+    "mediaType": "book",
+    "media": {
+     "id": "b-li-1",
+     "metadata": {
+      "title": "Dune",
+      "titleIgnorePrefix": "Dune",
+      "subtitle": null,
+      "authorName": "A. Author",
+      "authorNameLF": "Author, A.",
+      "narratorName": "N. Narrator",
+      "seriesName": null,
+      "genres": [
+       "Fantasy"
+      ],
+      "publishedYear": "2020",
+      "publisher": null,
+      "description": "About Dune",
+      "isbn": null,
+      "asin": null,
+      "language": null,
+      "explicit": false,
+      "abridged": false
+     },
+     "coverPath": "/audiobooks/Dune/cover.jpg",
+     "tags": [],
+     "numTracks": 1,
+     "numAudioFiles": 1,
+     "numChapters": 0,
+     "duration": 3600.0,
+     "size": 123456
+    },
+    "numFiles": 2,
+    "size": 123456
+   },
+   {
+    "id": "li-2",
+    "ino": "1",
+    "libraryId": "lib-1",
+    "folderId": "f1",
+    "path": "/audiobooks/Emma",
+    "addedAt": 1700000000000,
+    "updatedAt": 1700000001000,
+    "isMissing": false,
+    "mediaType": "book",
+    "media": {
+     "id": "b-li-2",
+     "metadata": {
+      "title": "Emma",
+      "titleIgnorePrefix": "Emma",
+      "subtitle": null,
+      "authorName": "A. Author",
+      "authorNameLF": "Author, A.",
+      "narratorName": "N. Narrator",
+      "seriesName": null,
+      "genres": [
+       "Fantasy"
+      ],
+      "publishedYear": "2020",
+      "publisher": null,
+      "description": "About Emma",
+      "isbn": null,
+      "asin": null,
+      "language": null,
+      "explicit": false,
+      "abridged": false
+     },
+     "coverPath": "/audiobooks/Emma/cover.jpg",
+     "tags": [],
+     "numTracks": 1,
+     "numAudioFiles": 1,
+     "numChapters": 0,
+     "duration": 3600.0,
+     "size": 123456
+    },
+    "numFiles": 2,
+    "size": 123456
+   }
+  ],
+  "total": 2
+ },
+ {
+  "id": "continue-reading",
+  "label": "Continue Reading",
+  "labelStringKey": "LabelContinueReading",
+  "type": "book",
+  "entities": [
+   {
+    "id": "li-eb",
+    "ino": "1",
+    "libraryId": "lib-1",
+    "folderId": "f1",
+    "path": "/audiobooks/Ebook Only",
+    "addedAt": 1700000000000,
+    "updatedAt": 1700000001000,
+    "isMissing": false,
+    "mediaType": "book",
+    "media": {
+     "id": "b-li-eb",
+     "metadata": {
+      "title": "Ebook Only",
+      "titleIgnorePrefix": "Ebook Only",
+      "subtitle": null,
+      "authorName": "A. Author",
+      "authorNameLF": "Author, A.",
+      "narratorName": "N. Narrator",
+      "seriesName": null,
+      "genres": [
+       "Fantasy"
+      ],
+      "publishedYear": "2020",
+      "publisher": null,
+      "description": "About Ebook Only",
+      "isbn": null,
+      "asin": null,
+      "language": null,
+      "explicit": false,
+      "abridged": false
+     },
+     "coverPath": "/audiobooks/Ebook Only/cover.jpg",
+     "tags": [],
+     "numTracks": 0,
+     "numAudioFiles": 0,
+     "numChapters": 0,
+     "duration": 0.0,
+     "size": 123456,
+     "ebookFormat": "epub"
+    },
+    "numFiles": 2,
+    "size": 123456
+   }
+  ],
+  "total": 1
+ },
+ {
+  "id": "continue-series",
+  "label": "Continue Series",
+  "type": "book",
+  "entities": [
+   {
+    "id": "li-3",
+    "ino": "1",
+    "libraryId": "lib-1",
+    "folderId": "f1",
+    "path": "/audiobooks/Book Two",
+    "addedAt": 1700000000000,
+    "updatedAt": 1700000001000,
+    "isMissing": false,
+    "mediaType": "book",
+    "media": {
+     "id": "b-li-3",
+     "metadata": {
+      "title": "Book Two",
+      "titleIgnorePrefix": "Book Two",
+      "subtitle": null,
+      "authorName": "A. Author",
+      "authorNameLF": "Author, A.",
+      "narratorName": "N. Narrator",
+      "seriesName": null,
+      "genres": [
+       "Fantasy"
+      ],
+      "publishedYear": "2020",
+      "publisher": null,
+      "description": "About Book Two",
+      "isbn": null,
+      "asin": null,
+      "language": null,
+      "explicit": false,
+      "abridged": false,
+      "series": {
+       "id": "s-1",
+       "name": "Saga",
+       "sequence": "2"
+      }
+     },
+     "coverPath": "/audiobooks/Book Two/cover.jpg",
+     "tags": [],
+     "numTracks": 1,
+     "numAudioFiles": 1,
+     "numChapters": 0,
+     "duration": 3600.0,
+     "size": 123456
+    },
+    "numFiles": 2,
+    "size": 123456
+   }
+  ],
+  "total": 1
+ },
+ {
+  "id": "recently-added",
+  "label": "Recently Added",
+  "type": "book",
+  "entities": [
+   {
+    "id": "li-4",
+    "ino": "1",
+    "libraryId": "lib-1",
+    "folderId": "f1",
+    "path": "/audiobooks/Fresh",
+    "addedAt": 1700000000000,
+    "updatedAt": 1700000001000,
+    "isMissing": false,
+    "mediaType": "book",
+    "media": {
+     "id": "b-li-4",
+     "metadata": {
+      "title": "Fresh",
+      "titleIgnorePrefix": "Fresh",
+      "subtitle": null,
+      "authorName": "A. Author",
+      "authorNameLF": "Author, A.",
+      "narratorName": "N. Narrator",
+      "seriesName": null,
+      "genres": [
+       "Fantasy"
+      ],
+      "publishedYear": "2020",
+      "publisher": null,
+      "description": "About Fresh",
+      "isbn": null,
+      "asin": null,
+      "language": null,
+      "explicit": false,
+      "abridged": false
+     },
+     "coverPath": null,
+     "tags": [],
+     "numTracks": 1,
+     "numAudioFiles": 1,
+     "numChapters": 0,
+     "duration": 3600.0,
+     "size": 123456
+    },
+    "numFiles": 2,
+    "size": 123456
+   }
+  ],
+  "total": 1
+ },
+ {
+  "id": "recent-series",
+  "label": "Recent Series",
+  "labelStringKey": "LabelRecentSeries",
+  "type": "series",
+  "entities": [
+   {
+    "id": "s-1",
+    "name": "Saga",
+    "nameIgnorePrefix": "Saga",
+    "description": null,
+    "addedAt": 1,
+    "updatedAt": 2,
+    "libraryId": "lib-1",
+    "books": [
+     {
+      "id": "li-3",
+      "ino": "1",
+      "libraryId": "lib-1",
+      "folderId": "f1",
+      "path": "/audiobooks/Book Two",
+      "addedAt": 1700000000000,
+      "updatedAt": 1700000001000,
+      "isMissing": false,
+      "mediaType": "book",
+      "media": {
+       "id": "b-li-3",
+       "metadata": {
+        "title": "Book Two",
+        "titleIgnorePrefix": "Book Two",
+        "subtitle": null,
+        "authorName": "A. Author",
+        "authorNameLF": "Author, A.",
+        "narratorName": "N. Narrator",
+        "seriesName": null,
+        "genres": [
+         "Fantasy"
+        ],
+        "publishedYear": "2020",
+        "publisher": null,
+        "description": "About Book Two",
+        "isbn": null,
+        "asin": null,
+        "language": null,
+        "explicit": false,
+        "abridged": false
+       },
+       "coverPath": "/audiobooks/Book Two/cover.jpg",
+       "tags": [],
+       "numTracks": 1,
+       "numAudioFiles": 1,
+       "numChapters": 0,
+       "duration": 3600.0,
+       "size": 123456
+      },
+      "numFiles": 2,
+      "size": 123456
+     },
+     {
+      "id": "li-5",
+      "ino": "1",
+      "libraryId": "lib-1",
+      "folderId": "f1",
+      "path": "/audiobooks/Book One",
+      "addedAt": 1700000000000,
+      "updatedAt": 1700000001000,
+      "isMissing": false,
+      "mediaType": "book",
+      "media": {
+       "id": "b-li-5",
+       "metadata": {
+        "title": "Book One",
+        "titleIgnorePrefix": "Book One",
+        "subtitle": null,
+        "authorName": "A. Author",
+        "authorNameLF": "Author, A.",
+        "narratorName": "N. Narrator",
+        "seriesName": null,
+        "genres": [
+         "Fantasy"
+        ],
+        "publishedYear": "2020",
+        "publisher": null,
+        "description": "About Book One",
+        "isbn": null,
+        "asin": null,
+        "language": null,
+        "explicit": false,
+        "abridged": false
+       },
+       "coverPath": "/audiobooks/Book One/cover.jpg",
+       "tags": [],
+       "numTracks": 1,
+       "numAudioFiles": 1,
+       "numChapters": 0,
+       "duration": 3600.0,
+       "size": 123456
+      },
+      "numFiles": 2,
+      "size": 123456
+     }
+    ]
+   }
+  ],
+  "total": 1
+ },
+ {
+  "id": "discover",
+  "label": "Discover",
+  "type": "book",
+  "entities": [
+   {
+    "id": "li-6",
+    "ino": "1",
+    "libraryId": "lib-1",
+    "folderId": "f1",
+    "path": "/audiobooks/Odd",
+    "addedAt": 1700000000000,
+    "updatedAt": 1700000001000,
+    "isMissing": false,
+    "mediaType": "book",
+    "media": {
+     "id": "b-li-6",
+     "metadata": {
+      "title": "Odd",
+      "titleIgnorePrefix": "Odd",
+      "subtitle": null,
+      "authorName": "A. Author",
+      "authorNameLF": "Author, A.",
+      "narratorName": "N. Narrator",
+      "seriesName": null,
+      "genres": [
+       "Fantasy"
+      ],
+      "publishedYear": "2020",
+      "publisher": null,
+      "description": "About Odd",
+      "isbn": null,
+      "asin": null,
+      "language": null,
+      "explicit": false,
+      "abridged": false
+     },
+     "coverPath": "/audiobooks/Odd/cover.jpg",
+     "tags": [],
+     "numTracks": 1,
+     "numAudioFiles": 1,
+     "numChapters": 0,
+     "duration": 3600.0,
+     "size": 123456
+    },
+    "numFiles": 2,
+    "size": 123456
+   }
+  ],
+  "total": 1
+ },
+ {
+  "id": "listen-again",
+  "label": "Listen Again",
+  "type": "book",
+  "entities": [
+   {
+    "id": "li-7",
+    "ino": "1",
+    "libraryId": "lib-1",
+    "folderId": "f1",
+    "path": "/audiobooks/Old",
+    "addedAt": 1700000000000,
+    "updatedAt": 1700000001000,
+    "isMissing": false,
+    "mediaType": "book",
+    "media": {
+     "id": "b-li-7",
+     "metadata": {
+      "title": "Old",
+      "titleIgnorePrefix": "Old",
+      "subtitle": null,
+      "authorName": "A. Author",
+      "authorNameLF": "Author, A.",
+      "narratorName": "N. Narrator",
+      "seriesName": null,
+      "genres": [
+       "Fantasy"
+      ],
+      "publishedYear": "2020",
+      "publisher": null,
+      "description": "About Old",
+      "isbn": null,
+      "asin": null,
+      "language": null,
+      "explicit": false,
+      "abridged": false
+     },
+     "coverPath": "/audiobooks/Old/cover.jpg",
+     "tags": [],
+     "numTracks": 1,
+     "numAudioFiles": 1,
+     "numChapters": 0,
+     "duration": 3600.0,
+     "size": 123456
+    },
+    "numFiles": 2,
+    "size": 123456
+   }
+  ],
+  "total": 1
+ },
+ {
+  "id": "read-again",
+  "label": "Read Again",
+  "type": "book",
+  "entities": [
+   {
+    "id": "li-8",
+    "ino": "1",
+    "libraryId": "lib-1",
+    "folderId": "f1",
+    "path": "/audiobooks/Old Ebook",
+    "addedAt": 1700000000000,
+    "updatedAt": 1700000001000,
+    "isMissing": false,
+    "mediaType": "book",
+    "media": {
+     "id": "b-li-8",
+     "metadata": {
+      "title": "Old Ebook",
+      "titleIgnorePrefix": "Old Ebook",
+      "subtitle": null,
+      "authorName": "A. Author",
+      "authorNameLF": "Author, A.",
+      "narratorName": "N. Narrator",
+      "seriesName": null,
+      "genres": [
+       "Fantasy"
+      ],
+      "publishedYear": "2020",
+      "publisher": null,
+      "description": "About Old Ebook",
+      "isbn": null,
+      "asin": null,
+      "language": null,
+      "explicit": false,
+      "abridged": false
+     },
+     "coverPath": "/audiobooks/Old Ebook/cover.jpg",
+     "tags": [],
+     "numTracks": 0,
+     "numAudioFiles": 0,
+     "numChapters": 0,
+     "duration": 0.0,
+     "size": 123456,
+     "ebookFormat": "epub"
+    },
+    "numFiles": 2,
+    "size": 123456
+   }
+  ],
+  "total": 1
+ },
+ {
+  "id": "newest-authors",
+  "label": "Newest Authors",
+  "labelStringKey": "LabelNewestAuthors",
+  "type": "authors",
+  "entities": [
+   {
+    "id": "au-1",
+    "name": "A. Author",
+    "numBooks": 3
+   }
+  ],
+  "total": 1
+ },
+ {
+  "id": "empty",
+  "label": "Empty",
+  "type": "book",
+  "entities": [],
+  "total": 0
+ }
+]

@@ -1,0 +1,101 @@
+{
+ "results": [
+  {
+   "id": "li-1",
+   "ino": "1",
+   "libraryId": "lib-1",
+   "folderId": "f1",
+   "path": "/audiobooks/Dune",
+   "addedAt": 1700000000000,
+   "updatedAt": 1700000001000,
+   "isMissing": false,
+   "mediaType": "book",
+   "media": {
+    "id": "b-li-1",
+    "metadata": {
+     "title": "Dune",
+     "titleIgnorePrefix": "Dune",
+     "subtitle": null,
+     "authorName": "A. Author",
+     "authorNameLF": "Author, A.",
+     "narratorName": "N. Narrator",
+     "seriesName": null,
+     "genres": [
+      "Fantasy"
+     ],
+     "publishedYear": "2020",
+     "publisher": null,
+     "description": "About Dune",
+     "isbn": null,
+     "asin": null,
+     "language": null,
+     "explicit": false,
+     "abridged": false
+    },
+    "coverPath": "/audiobooks/Dune/cover.jpg",
+    "tags": [],
+    "numTracks": 1,
+    "numAudioFiles": 1,
+    "numChapters": 0,
+    "duration": 3600.0,
+    "size": 123456
+   },
+   "numFiles": 2,
+   "size": 123456
+  },
+  {
+   "id": "li-2",
+   "ino": "1",
+   "libraryId": "lib-1",
+   "folderId": "f1",
+   "path": "/audiobooks/Emma",
+   "addedAt": 1700000000000,
+   "updatedAt": 1700000001000,
+   "isMissing": false,
+   "mediaType": "book",
+   "media": {
+    "id": "b-li-2",
+    "metadata": {
+     "title": "Emma",
+     "titleIgnorePrefix": "Emma",
+     "subtitle": null,
+     "authorName": "A. Author",
+     "authorNameLF": "Author, A.",
+     "narratorName": "N. Narrator",
+     "seriesName": null,
+     "genres": [
+      "Fantasy"
+     ],
+     "publishedYear": "2020",
+     "publisher": null,
+     "description": "About Emma",
+     "isbn": null,
+     "asin": null,
+     "language": null,
+     "explicit": false,
+     "abridged": false
+    },
+    "coverPath": "/audiobooks/Emma/cover.jpg",
+    "tags": [],
+    "numTracks": 0,
+    "numAudioFiles": 0,
+    "numChapters": 0,
+    "duration": 0.0,
+    "size": 123456,
+    "ebookFormat": "epub"
+   },
+   "numFiles": 2,
+   "size": 123456
+  }
+ ],
+ "total": 486,
+ "limit": 2,
+ "page": 0,
+ "sortBy": "media.metadata.title",
+ "sortDesc": false,
+ "filterBy": null,
+ "mediaType": "book",
+ "minified": true,
+ "collapseseries": false,
+ "include": ""
+}
