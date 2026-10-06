@@ -53,8 +53,8 @@ class NavStackTest {
         assertEquals("login", Screen.Login.key)
     }
 
-    @Test fun onlyBuiltTabsAreEnabled() {
-        assertEquals(setOf(Tab.HOME, Tab.SERIES, Tab.SETTINGS), Tab.entries.filter { it.enabled }.toSet())
+    @Test fun everyTabIsEnabled() {
+        assertEquals(Tab.entries.toSet(), Tab.entries.filter { it.enabled }.toSet())
     }
 
     @Test fun seriesBooksKeyAndRemovalCallbacks() {

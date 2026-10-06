@@ -72,11 +72,13 @@ class MainActivity : ComponentActivity() {
     @Composable
     private fun Root() {
         val saveable = rememberSaveableStateHolder()
-        BackHandler(enabled = vm.screen == Screen.Detail || vm.screen == Screen.Player || vm.screen is Screen.SeriesBooks) { vm.back() }
-        // A popped series detail drops its saved scroll position and remembered focus.
+        // Every non-root screen pops itself; tab roots, the open rail and the library switcher are handled by Shell.
+        BackHandler(enabled = vm.screen !is Screen.Browse && vm.screen != Screen.Login) { vm.back() }
+        // A popped series or collection detail drops its saved scroll position and remembered focus.
+        // (logout and selectLibrary reset the stack BEFORE bumping stateEpoch, so the keys below still match.)
         DisposableEffect(saveable) {
             vm.stack.onRemoved = { gone ->
-                if (gone is Screen.SeriesBooks) {
+                if (gone is Screen.SeriesBooks || gone is Screen.CollectionBooks) {
                     saveable.removeState("${gone.key}#${vm.stateEpoch}")
                     vm.lastFocused.remove(gone.key)
                 }
@@ -98,9 +100,10 @@ class MainActivity : ComponentActivity() {
                         Tab.SEARCH -> SearchTab()
                         Tab.LIBRARY -> LibraryTab()
                         Tab.SERIES -> SeriesTab(vm)
-                        Tab.COLLECTIONS -> CollectionsTab()
+                        Tab.COLLECTIONS -> CollectionsTab(vm)
                     }
                 }
+                is Screen.CollectionBooks -> Shell(vm) { CollectionBooksScreen(vm, s.collection) }
                 Screen.Detail -> DetailScreen(vm)
                 Screen.Player -> PlayerScreen(vm)
             }

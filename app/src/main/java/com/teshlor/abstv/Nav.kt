@@ -13,7 +13,7 @@ enum class Tab(val label: String, val enabled: Boolean) {
     HOME("Home", true),
     LIBRARY("Library", false),
     SERIES("Series", true),
-    COLLECTIONS("Collections", false),
+    COLLECTIONS("Collections", true),
     SETTINGS("Settings", true),
 }
 
@@ -24,6 +24,7 @@ sealed interface Screen {
     data object Login : Screen { override val key = "login" }
     data class Browse(val tab: Tab) : Screen { override val key get() = "tab:${tab.name}" }
     data class SeriesBooks(val seriesId: String, val name: String) : Screen { override val key get() = "series:$seriesId" }
+    data class CollectionBooks(val collection: BookCollection) : Screen { override val key get() = "collection:${collection.id}" }
     data object Detail : Screen { override val key = "detail" }
     data object Player : Screen { override val key = "player" }
 }
