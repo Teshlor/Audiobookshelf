@@ -546,7 +546,7 @@ private fun ResultsView(
         if (r.book.isNotEmpty()) item(key = "g-books") {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 GroupHeading("Books", r.book.size)
-                LazyRow(state = rowStates[0], modifier = Modifier.onFocusEntered(listState) { listState.animateScrollToItem(0) }, contentPadding = rowPad, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                LazyRow(state = rowStates[0], modifier = Modifier.snapBackToStart(rowStates[0]).onFocusEntered(listState) { listState.animateScrollToItem(0) }, contentPadding = rowPad, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     items(r.book, key = { it.libraryItem.id }) { m ->
                         val b = m.libraryItem
                         BookCard(b, api?.bookCoverUrl(b.id), { onBook(b) }, {}, focusRequester = req("book:${b.id}"), progress = progress[b.id], highlight = q)
@@ -557,7 +557,7 @@ private fun ResultsView(
         if (r.series.isNotEmpty()) item(key = "g-series") {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 GroupHeading("Series", r.series.size)
-                LazyRow(state = rowStates[1], modifier = Modifier.onFocusEntered(listState) { listState.animateScrollToItem(seriesIdx) }, contentPadding = rowPad, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                LazyRow(state = rowStates[1], modifier = Modifier.snapBackToStart(rowStates[1]).onFocusEntered(listState) { listState.animateScrollToItem(seriesIdx) }, contentPadding = rowPad, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     items(r.series, key = { it.series.id }) { m ->
                         SeriesResultCard(m, api, q, req("series:${m.series.id}")) { onSeries(m) }
                     }
@@ -567,7 +567,7 @@ private fun ResultsView(
         if (r.narrators.isNotEmpty()) item(key = "g-narrators") {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 GroupHeading("Narrators", r.narrators.size)
-                LazyRow(state = rowStates[2], modifier = Modifier.onFocusEntered(listState) { listState.animateScrollToItem(narratorIdx) }, contentPadding = rowPad, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                LazyRow(state = rowStates[2], modifier = Modifier.snapBackToStart(rowStates[2]).onFocusEntered(listState) { listState.animateScrollToItem(narratorIdx) }, contentPadding = rowPad, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     items(r.narrators, key = { it.name }) { m ->
                         NarratorPill(m, q, req("narr:${m.name}")) { onNarrator(m) }
                     }

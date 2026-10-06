@@ -47,6 +47,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.input.key.Key
@@ -170,6 +171,29 @@ fun Modifier.onFocusEntered(state: ScrollableState, action: suspend () -> Unit):
     return onFocusChanged { s ->
         if (s.hasFocus && !had[0]) scope.launch { state.awaitScrollIdle(); if (had[0]) current() } // skip if focus already left the row
         had[0] = s.hasFocus
+    }
+}
+
+/**
+ * Rows bleed under the rail through their start contentPadding, and the lazy list's own bring-into-view only scrolls a
+ * focused card to the viewport edge, not to the padding edge. Coming back Left to the first card therefore left it
+ * half under the rail, where Left found no rail item to its left and went nowhere. After a Left press, once the focus
+ * scroll has settled, scroll a row that is still showing item 0 partly past its start back to its normal position.
+ */
+@Composable
+fun Modifier.snapBackToStart(state: LazyListState): Modifier {
+    val scope = rememberCoroutineScope()
+    val job = remember { arrayOfNulls<Job>(1) }
+    return onPreviewKeyEvent { e ->
+        if (e.type == KeyEventType.KeyDown && e.key == Key.DirectionLeft) {
+            job[0]?.cancel()
+            job[0] = scope.launch {
+                withFrameNanos { }; withFrameNanos { }   // let the focus move and its bring-into-view scroll begin
+                state.awaitScrollIdle()
+                if (state.firstVisibleItemIndex == 0 && state.firstVisibleItemScrollOffset > 0) state.animateScrollToItem(0)
+            }
+        }
+        false
     }
 }
 

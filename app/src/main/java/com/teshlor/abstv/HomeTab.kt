@@ -132,7 +132,7 @@ private fun ShelfRow(
     }
     // Rows bleed under the rail (start padding) so scaled cards aren't clipped at the edges.
     LazyRow(
-        modifier = Modifier.onFocusEntered(outerState, onEnter),
+        modifier = Modifier.onFocusEntered(outerState, onEnter).snapBackToStart(rowState),
         state = rowState,
         contentPadding = PaddingValues(start = HomeStart, end = 48.dp),
         horizontalArrangement = Arrangement.spacedBy(if (shelf.id == CONTINUE_LISTENING) 20.dp else 16.dp),
