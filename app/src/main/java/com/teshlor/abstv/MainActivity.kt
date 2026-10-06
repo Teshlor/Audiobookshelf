@@ -70,8 +70,8 @@ class MainActivity : ComponentActivity() {
     @Composable
     private fun Root() {
         BackHandler(enabled = vm.screen == Screen.Detail || vm.screen == Screen.Player) { vm.back() }
-        // Full decor (wash + glows + motif) on Login and Home; Detail and Player get the wash only.
-        ThemeDecor(vm.theme, full = vm.screen == Screen.Login || vm.screen == Screen.Home)
+        // Header band on Login and Home only; Detail and Player get the plain bg.
+        ThemeDecor(vm.theme, showBand = vm.screen == Screen.Login || vm.screen == Screen.Home)
         when (vm.screen) {
             Screen.Login -> LoginScreen(vm)
             Screen.Home -> HomeScreen(vm)

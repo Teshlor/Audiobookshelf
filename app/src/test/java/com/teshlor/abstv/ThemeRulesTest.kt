@@ -75,7 +75,7 @@ class ThemeRulesTest {
     }
 
     @Test fun debugKeysRoundTrip() {
-        AbsTheme.entries.forEach { assertEquals(it, AbsTheme.fromKey(it.key)) }
+        AbsTheme.entries.forEach { assertEquals(it, AbsTheme.fromKey(it.name.lowercase())) }
         assertEquals(null, AbsTheme.fromKey("nope"))
         assertEquals(null, AbsTheme.fromKey(null))
     }

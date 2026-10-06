@@ -37,6 +37,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.tv.material3.Border
 import androidx.tv.material3.ButtonDefaults
@@ -91,7 +94,7 @@ fun LoginScreen(vm: AppViewModel) {
         Modifier.fillMaxSize().padding(horizontal = 240.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically),
     ) {
-        Text("Audiobookshelf", fontSize = 32.sp, color = c.accent)
+        Text("Audiobookshelf", fontFamily = FontFamily.Serif, fontSize = 32.sp, color = c.accent)
         OutlinedTextField(
             server, { server = it }, Modifier.fillMaxWidth(), singleLine = true, colors = fieldColors(),
             label = { M3Text("Server (e.g. 192.168.1.10:13378)") },
@@ -106,6 +109,21 @@ fun LoginScreen(vm: AppViewModel) {
         AbsButton(onClick = { vm.login(server, user, pass) }) {
             Text(if (vm.loading) "Signing in…" else "Sign in")
         }
+    }
+}
+
+/** Serif section title followed by a short fading accent rule (decorative). */
+@Composable
+fun SectionTitle(text: String, modifier: Modifier = Modifier) {
+    val c = LocalAbsColors.current
+    Row(modifier, verticalAlignment = Alignment.CenterVertically) {
+        Text(text, fontFamily = FontFamily.Serif, fontSize = 21.sp, lineHeight = 24.sp, letterSpacing = 0.2.sp, color = c.accent)
+        Spacer(Modifier.width(14.dp))
+        Box(
+            Modifier.width(220.dp).height(1.dp).background(
+                Brush.horizontalGradient(listOf(c.accent.copy(alpha = 0.6f), c.accent.copy(alpha = 0f))),
+            ),
+        )
     }
 }
 
@@ -164,7 +182,7 @@ fun HomeScreen(vm: AppViewModel) {
         }
         vm.error?.let { item { Text(it, modifier = side, color = c.error) } }
         if (vm.continueListening.isNotEmpty()) {
-            item { Text("Continue Listening", modifier = side, fontSize = 20.sp, color = c.accent) }
+            item { SectionTitle("Continue Listening", side) }
             item {
                 // Bleeds to the screen edges so the scaled first card's focus ring isn't clipped.
                 LazyRow(
@@ -175,7 +193,7 @@ fun HomeScreen(vm: AppViewModel) {
                 }
             }
         }
-        item { Text("Books", modifier = side, fontSize = 20.sp, color = c.accent) }
+        item { SectionTitle("Books", side) }
         items(vm.books.chunked(5)) { row ->
             Row(side, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 row.forEach { BookCard(vm, it) }

@@ -2,13 +2,12 @@ package com.teshlor.abstv
 
 import java.util.Calendar
 
-enum class AbsTheme(val key: String) {
-    AUTUMN("autumn"), HALLOWEEN("halloween"), THANKSGIVING("thanksgiving"), CHRISTMAS("christmas"),
-    WINTER("winter"), SPRING("spring"), SUMMER("summer"),
-    NEW_YEAR("newyear"), AURORA("aurora"), VALENTINE("valentine"), FIREFLIES("fireflies"), JULY_4("july4");
+enum class AbsTheme {
+    AUTUMN, HALLOWEEN, THANKSGIVING, CHRISTMAS, NEW_YEAR, WINTER, AURORA, VALENTINE, SPRING, SUMMER, FIREFLIES, JULY_4;
 
     companion object {
-        fun fromKey(key: String?): AbsTheme? = entries.firstOrNull { it.key == key?.lowercase() }
+        /** Debug QA hook: the lowercase enum name, e.g. "halloween" or "new_year". */
+        fun fromKey(key: String?): AbsTheme? = entries.firstOrNull { it.name.equals(key, ignoreCase = true) }
     }
 }
 
