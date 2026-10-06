@@ -83,17 +83,18 @@ class CollectionsLogicTest {
         assertEquals("MY LIB · COLLECTIONS", collectionsOverline("My Lib", 0))
     }
 
-    @Test fun collectionScreenKeyIsPerCollectionAndStackExposesIt() {
+    @Test fun collectionScreenKeyIsPerCollectionAndRemovalIsReported() {
         val a = Screen.CollectionBooks(BookCollection("a", "A"))
         val b = Screen.CollectionBooks(BookCollection("b", "B"))
         assertEquals("collection:a", a.key)
         val n = NavStack(Screen.Browse(Tab.COLLECTIONS))
+        val removed = mutableListOf<Screen>()
+        n.onRemoved = { removed += it }
         n.push(a)
         assertEquals(Tab.COLLECTIONS, n.tab)
-        assertEquals(listOf(Screen.Browse(Tab.COLLECTIONS), a), n.screens)
         n.pop()
-        assertEquals(listOf<Screen>(Screen.Browse(Tab.COLLECTIONS)), n.screens)
+        assertEquals(listOf<Screen>(a), removed)
         n.push(b); n.selectTab(Tab.HOME)
-        assertTrue(n.screens.none { it is Screen.CollectionBooks })
+        assertTrue(b in removed)
     }
 }

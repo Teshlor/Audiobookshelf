@@ -91,12 +91,6 @@ class Debouncer(private val scope: CoroutineScope, private val delayMs: Long = S
     fun cancel() { job?.cancel(); job = null }
 }
 
-/** Series books in reading order: numeric sequence first (1, 1.5, 2, 10), unnumbered last. */
-fun sortBySequence(books: List<Book>): List<Book> =
-    books.sortedWith(compareBy<Book> { it.sequence?.toDoubleOrNull() ?: Double.MAX_VALUE }.thenBy { it.title })
-
 /** Up to two letters for the narrator avatar: "Rob Inglis" -> "RI". */
 fun initialsOf(name: String): String =
     name.trim().split(Regex("\\s+")).filter { it.isNotEmpty() }.take(2).joinToString("") { it.first().uppercase() }
-
-fun bookCountLabel(n: Int) = if (n == 1) "1 book" else "$n books"
