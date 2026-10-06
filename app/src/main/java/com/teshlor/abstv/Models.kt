@@ -20,6 +20,8 @@ import kotlinx.serialization.json.contentOrNull
     val title: String = "",
     val subtitle: String? = null,
     val authorName: String? = null,
+    /** "Last, First": the key the server sorts by when sorting by author (A-Z jump on the Library tab). */
+    val authorNameLF: String? = null,
     val narratorName: String? = null,
     val description: String? = null,
     /**

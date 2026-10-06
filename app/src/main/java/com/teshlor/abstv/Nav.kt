@@ -11,7 +11,7 @@ import androidx.compose.runtime.setValue
 enum class Tab(val label: String, val enabled: Boolean) {
     SEARCH("Search", true),
     HOME("Home", true),
-    LIBRARY("Library", false),
+    LIBRARY("Library", true),
     SERIES("Series", true),
     COLLECTIONS("Collections", true),
     SETTINGS("Settings", true),

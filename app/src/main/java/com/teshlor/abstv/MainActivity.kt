@@ -98,7 +98,7 @@ class MainActivity : ComponentActivity() {
                         Tab.HOME -> HomeScreen(vm)
                         Tab.SETTINGS -> SettingsTab(vm)
                         Tab.SEARCH -> SearchTab(vm)
-                        Tab.LIBRARY -> LibraryTab()
+                        Tab.LIBRARY -> LibraryTab(vm)
                         Tab.SERIES -> SeriesTab(vm)
                         Tab.COLLECTIONS -> CollectionsTab(vm)
                     }
