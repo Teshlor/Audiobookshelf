@@ -21,15 +21,21 @@ import kotlinx.coroutines.launch
  * progress to the Audiobookshelf server through a playback session.
  */
 class PlayerController(context: Context) {
-    private val player = ExoPlayer.Builder(context)
-        .setAudioAttributes(
-            AudioAttributes.Builder()
-                .setUsage(C.USAGE_MEDIA)
-                .setContentType(C.AUDIO_CONTENT_TYPE_SPEECH)
-                .build(),
-            true,
-        )
-        .build()
+    // Lazy: building ExoPlayer is slow on weak TV SoCs and is not needed until a book is played, so keep it
+    // off the cold-start path. Always first touched on Main (start()).
+    private val appContext = context.applicationContext
+    private val playerLazy = lazy {
+        ExoPlayer.Builder(appContext)
+            .setAudioAttributes(
+                AudioAttributes.Builder()
+                    .setUsage(C.USAGE_MEDIA)
+                    .setContentType(C.AUDIO_CONTENT_TYPE_SPEECH)
+                    .build(),
+                true,
+            )
+            .build()
+    }
+    private val player by playerLazy
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     var active by mutableStateOf(false); private set
@@ -162,6 +168,6 @@ class PlayerController(context: Context) {
 
     fun release() {
         stop()
-        player.release()
+        if (playerLazy.isInitialized()) player.release()
     }
 }

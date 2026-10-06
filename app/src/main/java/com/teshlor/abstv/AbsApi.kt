@@ -78,31 +78,34 @@ class AbsApi(serverUrl: String, val token: String = "") {
             ?: throw IOException("Login response had no token")
     }
 
-    suspend fun libraries(): List<Library> {
-        val arr = json.parseToJsonElement(exec(get("/api/libraries"))).jsonObject["libraries"]!!.jsonArray
-        return json.decodeFromJsonElement(kotlinx.serialization.builtins.ListSerializer(Library.serializer()), arr)
+    /** Parses off the main thread: callers run on Main (viewModelScope) and the library JSON is large. */
+    private suspend fun <T> parse(body: String, block: (String) -> T): T =
+        withContext(Dispatchers.Default) { block(body) }
+
+    suspend fun libraries(): List<Library> = parse(exec(get("/api/libraries"))) { body ->
+        val arr = json.parseToJsonElement(body).jsonObject["libraries"]!!.jsonArray
+        json.decodeFromJsonElement(kotlinx.serialization.builtins.ListSerializer(Library.serializer()), arr)
     }
 
-    suspend fun items(libraryId: String): List<Book> {
-        val arr = json.parseToJsonElement(
-            exec(get("/api/libraries/$libraryId/items?limit=500&sort=media.metadata.title"))
-        ).jsonObject["results"]!!.jsonArray
-        return json.decodeFromJsonElement(kotlinx.serialization.builtins.ListSerializer(Book.serializer()), arr)
-    }
+    suspend fun items(libraryId: String): List<Book> =
+        parse(exec(get("/api/libraries/$libraryId/items?limit=500&sort=media.metadata.title"))) { body ->
+            val arr = json.parseToJsonElement(body).jsonObject["results"]!!.jsonArray
+            json.decodeFromJsonElement(kotlinx.serialization.builtins.ListSerializer(Book.serializer()), arr)
+        }
 
-    suspend fun continueListening(libraryId: String): List<Book> {
-        val shelves = json.parseToJsonElement(exec(get("/api/libraries/$libraryId/personalized"))).jsonArray
-        val shelf = shelves.firstOrNull { it.jsonObject["id"]?.jsonPrimitive?.content == "continue-listening" }
-            ?: return emptyList()
-        val entities = shelf.jsonObject["entities"]?.jsonArray ?: return emptyList()
-        return json.decodeFromJsonElement(kotlinx.serialization.builtins.ListSerializer(Book.serializer()), entities)
-    }
+    suspend fun continueListening(libraryId: String): List<Book> =
+        parse(exec(get("/api/libraries/$libraryId/personalized"))) { body ->
+            val shelves = json.parseToJsonElement(body).jsonArray
+            val shelf = shelves.firstOrNull { it.jsonObject["id"]?.jsonPrimitive?.content == "continue-listening" }
+            val entities = shelf?.jsonObject?.get("entities")?.jsonArray
+            if (entities == null) emptyList()
+            else json.decodeFromJsonElement(kotlinx.serialization.builtins.ListSerializer(Book.serializer()), entities)
+        }
 
     suspend fun item(id: String): Book =
-        json.decodeFromString(Book.serializer(), exec(get("/api/items/$id?expanded=1")))
+        parse(exec(get("/api/items/$id?expanded=1"))) { json.decodeFromString(Book.serializer(), it) }
 
-    suspend fun play(itemId: String): PlaySession = json.decodeFromString(
-        PlaySession.serializer(),
+    suspend fun play(itemId: String): PlaySession = parse(
         exec(post("/api/items/$itemId/play", buildJsonObject {
             put("deviceInfo", buildJsonObject {
                 put("clientName", "Audiobookshelf TV")
@@ -116,7 +119,7 @@ class AbsApi(serverUrl: String, val token: String = "") {
                     .forEach { add(kotlinx.serialization.json.JsonPrimitive(it)) }
             })
         }))
-    )
+    ) { json.decodeFromString(PlaySession.serializer(), it) }
 
     suspend fun sync(sessionId: String, currentTime: Double, timeListened: Double, duration: Double) {
         exec(post("/api/session/$sessionId/sync", buildJsonObject {
