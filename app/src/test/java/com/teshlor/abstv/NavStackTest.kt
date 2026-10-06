@@ -54,6 +54,6 @@ class NavStackTest {
     }
 
     @Test fun onlyBuiltTabsAreEnabled() {
-        assertEquals(setOf(Tab.HOME, Tab.SETTINGS), Tab.entries.filter { it.enabled }.toSet())
+        assertEquals(setOf(Tab.SEARCH, Tab.HOME, Tab.SETTINGS), Tab.entries.filter { it.enabled }.toSet())
     }
 }
