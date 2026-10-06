@@ -9,17 +9,17 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.launch
 
-sealed interface Screen {
-    data object Login : Screen
-    data object Home : Screen
-    data object Detail : Screen
-    data object Player : Screen
-}
-
 class AppViewModel(app: Application) : AndroidViewModel(app) {
     private val prefs = app.getSharedPreferences("abs", Context.MODE_PRIVATE)
 
-    var screen by mutableStateOf<Screen>(Screen.Login); private set
+    val stack = NavStack(Screen.Login)
+    val screen: Screen get() = stack.current
+
+    /** Last focused item id per screen key. Plain map on purpose: focus changes must not recompose anything. */
+    val lastFocused = HashMap<String, String>()
+
+    var username by mutableStateOf(prefs.getString("username", "").orEmpty()); private set
+    private var lastLoadedAt = 0L
     var api by mutableStateOf<AbsApi?>(null); private set
     var loading by mutableStateOf(false); private set
     var error by mutableStateOf<String?>(null); private set
@@ -48,9 +48,18 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val token = prefs.getString("token", null)
         if (!server.isNullOrEmpty() && !token.isNullOrEmpty()) {
             api = AbsApi(server, token)
-            screen = Screen.Home
+            stack.reset(Screen.Browse(Tab.HOME))
             loadHome()
         }
+    }
+
+    // --- Session storage: kept in these two small functions so the Auth v2 (JWT) change merges cleanly. ---
+    private fun storeSession(a: AbsApi, token: String) {
+        prefs.edit().putString("server", a.baseUrl).putString("token", token).apply()
+    }
+
+    private fun clearSession() {
+        prefs.edit().remove("token").remove("username").apply()
     }
 
     private fun launchLoading(block: suspend () -> Unit) {
@@ -70,28 +79,43 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun login(server: String, username: String, password: String) = launchLoading {
         val token = AbsApi(server).login(username, password)
         val a = AbsApi(server, token)
-        prefs.edit().putString("server", a.baseUrl).putString("token", token).apply()
+        storeSession(a, token)
         api = a
-        screen = Screen.Home
+        val name = runCatching { a.me().username }.getOrNull()?.takeIf { it.isNotEmpty() } ?: username
+        this.username = name
+        prefs.edit().putString("username", name).apply()
+        stack.reset(Screen.Browse(Tab.HOME))
         loadHomeInternal(a)
     }
 
     fun logout() {
         player.stop()
-        prefs.edit().remove("token").apply()
+        clearSession()
         api = null
+        username = ""
         libraries = emptyList(); books = emptyList(); continueListening = emptyList()
+        selectedLibrary = null
+        lastFocused.clear()
         error = null
-        screen = Screen.Login
+        stack.reset(Screen.Login)
     }
+
+    /** Settings > Refresh library. */
+    fun refreshLibrary() = loadHome()
 
     fun loadHome() = launchLoading { loadHomeInternal(api ?: return@launchLoading) }
 
     private suspend fun loadHomeInternal(a: AbsApi) {
-        libraries = a.libraries().filter { it.mediaType == "book" }
-        val lib = selectedLibrary?.takeIf { l -> libraries.any { it.id == l.id } } ?: libraries.firstOrNull()
+        // Audio libraries only: ebook-only libraries are hidden from the switcher.
+        libraries = a.audioLibraries().filter { it.hasAudio }
+        val wanted = selectedLibrary?.id ?: prefs.getString("library_id", null)
+        val lib = libraries.firstOrNull { it.id == wanted } ?: libraries.firstOrNull()
         selectedLibrary = lib
-        if (lib != null) loadLibrary(a, lib)
+        if (lib != null) {
+            prefs.edit().putString("library_id", lib.id).apply()
+            loadLibrary(a, lib)
+        }
+        lastLoadedAt = System.currentTimeMillis()
     }
 
     private suspend fun loadLibrary(a: AbsApi, lib: Library) {
@@ -99,14 +123,25 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         continueListening = a.continueListening(lib.id)
     }
 
-    fun selectLibrary(lib: Library) = launchLoading {
+    /** Switches library, persists the choice and lands on Home. */
+    fun selectLibrary(lib: Library) {
         selectedLibrary = lib
-        loadLibrary(api ?: return@launchLoading, lib)
+        prefs.edit().putString("library_id", lib.id).apply()
+        books = emptyList(); continueListening = emptyList()
+        lastFocused.clear()
+        stack.selectTab(Tab.HOME)
+        launchLoading { loadLibrary(api ?: return@launchLoading, lib) }
+    }
+
+    /** Rail tab switch. Returning to Home after a while refreshes it (launch, after playback and this are the only auto-refreshes). */
+    fun selectTab(tab: Tab) {
+        stack.selectTab(tab)
+        if (tab == Tab.HOME && System.currentTimeMillis() - lastLoadedAt > 5 * 60_000L) loadHome()
     }
 
     fun openBook(book: Book) {
         selectedBook = book
-        screen = Screen.Detail
+        stack.push(Screen.Detail)
         val a = api ?: return
         viewModelScope.launch {
             runCatching { a.item(book.id) }.onSuccess { selectedBook = it }
@@ -118,18 +153,20 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val book = selectedBook ?: return
         launchLoading {
             player.start(a, book.id)
-            screen = Screen.Player
+            stack.push(Screen.Player)
         }
     }
 
+    /** Back for Detail and Player (Browse and Login are handled by the shell). */
     fun back() {
         when (screen) {
             Screen.Player -> {
                 player.stop()
-                screen = Screen.Home
+                stack.pop() // Player
+                stack.pop() // Detail
                 loadHome() // refresh Continue Listening
             }
-            Screen.Detail -> screen = Screen.Home
+            Screen.Detail -> stack.pop()
             else -> Unit
         }
     }

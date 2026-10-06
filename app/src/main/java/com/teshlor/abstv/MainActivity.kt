@@ -11,6 +11,7 @@ import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.darkColorScheme as tvDarkColorScheme
@@ -69,14 +70,27 @@ class MainActivity : ComponentActivity() {
 
     @Composable
     private fun Root() {
+        val saveable = rememberSaveableStateHolder()
         BackHandler(enabled = vm.screen == Screen.Detail || vm.screen == Screen.Player) { vm.back() }
-        // Header band on Login and Home only; Detail and Player get the plain bg.
-        ThemeDecor(vm.theme, showBand = vm.screen == Screen.Login || vm.screen == Screen.Home)
-        when (vm.screen) {
-            Screen.Login -> LoginScreen(vm)
-            Screen.Home -> HomeScreen(vm)
-            Screen.Detail -> DetailScreen(vm)
-            Screen.Player -> PlayerScreen(vm)
+        // Header band on Login and Home only; everything else gets the plain bg.
+        ThemeDecor(vm.theme, showBand = vm.screen == Screen.Login || vm.screen == Screen.Browse(Tab.HOME))
+        // Per-screen saved state keeps scroll positions across Detail -> Back.
+        saveable.SaveableStateProvider(vm.screen.key) {
+            when (val s = vm.screen) {
+                Screen.Login -> LoginScreen(vm)
+                is Screen.Browse -> Shell(vm) {
+                    when (s.tab) {
+                        Tab.HOME -> HomeScreen(vm)
+                        Tab.SETTINGS -> SettingsTab(vm)
+                        Tab.SEARCH -> SearchTab(vm)
+                        Tab.LIBRARY -> LibraryTab(vm)
+                        Tab.SERIES -> SeriesTab(vm)
+                        Tab.COLLECTIONS -> CollectionsTab(vm)
+                    }
+                }
+                Screen.Detail -> DetailScreen(vm)
+                Screen.Player -> PlayerScreen(vm)
+            }
         }
     }
 
