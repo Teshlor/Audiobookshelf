@@ -18,7 +18,14 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            // R8 + resource shrinking: far faster Compose than the debug build on weak TV SoCs.
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            // TEMPORARY: signed with the debug key (same applicationId) so `adb install -r` upgrades the
+            // existing debug install in place and keeps the login. Swap for a real release key before
+            // publishing anywhere.
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
     compileOptions {
