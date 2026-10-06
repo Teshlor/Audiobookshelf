@@ -21,7 +21,11 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.draw.CacheDrawScope
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import kotlin.math.sin
@@ -199,13 +203,15 @@ val AbsPalettes: Map<AbsTheme, AbsColors> = mapOf(
 )
 
 /**
- * Static decor behind a screen: top wash, glows and (when [full]) the corner motif. Drawn once per
- * size/theme in drawWithCache; nothing animates. Detail and Player pass full = false (wash only).
+ * Static decor behind a screen: top wash, glows and art layers (those marked for this screen).
+ * Everything is built once per size/theme in drawWithCache, and the whole decor sits in its own
+ * offscreen graphics layer, so cursor blinks and the Player's progress tick don't redraw it.
+ * Nothing animates. Detail and Player pass full = false (wash plus all-screens layers only).
  */
 @Composable
 fun ThemeDecor(theme: AbsTheme, full: Boolean) {
     val c = AbsPalettes.getValue(theme)
-    Box(Modifier.fillMaxSize()) {
+    Box(Modifier.fillMaxSize().graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)) {
         Box(
             Modifier.fillMaxSize().drawWithCache {
                 val wash = Brush.verticalGradient(
@@ -226,10 +232,12 @@ fun ThemeDecor(theme: AbsTheme, full: Boolean) {
                         center, r,
                     )
                 } else emptyList()
+                val aurora = if (full && theme == AbsTheme.AURORA) buildAurora(this) else emptyList()
+                val layerPaint = Paint()
                 onDrawBehind {
                     drawRect(wash)
                     glows.forEach { (brush, center, r) -> drawCircle(brush, r, center) }
-                    if (full && theme == AbsTheme.AURORA) drawAurora()
+                    aurora.forEach { drawRibbon(it, layerPaint) }
                 }
             },
         )
@@ -257,39 +265,47 @@ private val ribbons = listOf(
     Ribbon({ 90 + 22 * sin(it / 130 + 2.0f) }, { 200 + 26 * sin(it / 110 + 0.3f) }, -200, 800, Color(0xFF8A6CE0), 0.26f),
 )
 
+/** A ribbon with its path, brushes and layer bounds already built (cached with the decor). */
+private class BuiltRibbon(val path: Path, val fill: Brush, val fade: Brush, val bounds: Rect)
+
 /** Two aurora ribbons in motif-viewport px (1px = 0.5dp, x = 0 is 380dp from the right edge), fading in from the left. */
-private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawAurora() {
+private fun buildAurora(scope: CacheDrawScope): List<BuiltRibbon> = with(scope) {
     val unit = 0.5.dp.toPx()
     val originX = size.width - 380.dp.toPx()
-    drawIntoCanvas { canvas ->
-        ribbons.forEach { r ->
-            val xs = (r.from..r.to step 10).map { it.toFloat() }
-            val path = Path().apply {
-                xs.forEachIndexed { i, x -> if (i == 0) moveTo(originX + x * unit, r.top(x) * unit) else lineTo(originX + x * unit, r.top(x) * unit) }
-                xs.reversed().forEach { x -> lineTo(originX + x * unit, r.bottom(x) * unit) }
-                close()
-            }
-            val b = path.getBounds()
-            val x0 = originX + r.from * unit
-            val x1 = originX + r.to * unit
-            canvas.saveLayer(Rect(0f, 0f, size.width, size.height), Paint())
-            drawPath(
-                path,
-                Brush.verticalGradient(
-                    0f to r.color.copy(alpha = 0f),
-                    0.78f to r.color.copy(alpha = r.peak),
-                    1f to r.color.copy(alpha = 0.04f),
-                    startY = b.top, endY = b.bottom,
-                ),
-            )
-            drawRect(
-                Brush.horizontalGradient(
-                    0f to Color.Transparent, 0.5f to Color.Black, 1f to Color.Black,
-                    startX = x0, endX = x1,
-                ),
-                blendMode = BlendMode.DstIn,
-            )
-            canvas.restore()
+    ribbons.map { r ->
+        val xs = (r.from..r.to step 10).map { it.toFloat() }
+        val path = Path().apply {
+            xs.forEachIndexed { i, x -> if (i == 0) moveTo(originX + x * unit, r.top(x) * unit) else lineTo(originX + x * unit, r.top(x) * unit) }
+            xs.reversed().forEach { x -> lineTo(originX + x * unit, r.bottom(x) * unit) }
+            close()
         }
+        val b = path.getBounds()
+        BuiltRibbon(
+            path,
+            Brush.verticalGradient(
+                0f to r.color.copy(alpha = 0f),
+                0.78f to r.color.copy(alpha = r.peak),
+                1f to r.color.copy(alpha = 0.04f),
+                startY = b.top, endY = b.bottom,
+            ),
+            Brush.horizontalGradient(
+                0f to Color.Transparent, 0.5f to Color.Black, 1f to Color.Black,
+                startX = originX + r.from * unit, endX = originX + r.to * unit,
+            ),
+            b,
+        )
+    }
+}
+
+/** Draws one cached ribbon in a layer bounded to the ribbon's own rect (not the whole screen). */
+private fun DrawScope.drawRibbon(r: BuiltRibbon, layerPaint: Paint) {
+    drawIntoCanvas { canvas ->
+        canvas.saveLayer(r.bounds, layerPaint)
+        drawPath(r.path, r.fill)
+        drawRect(
+            r.fade, topLeft = r.bounds.topLeft, size = r.bounds.size,
+            blendMode = BlendMode.DstIn,
+        )
+        canvas.restore()
     }
 }
