@@ -122,7 +122,30 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Settings > Refresh library. */
-    fun refreshLibrary() = loadHome()
+    fun refreshLibrary() {
+        libraryTab = null
+        loadHome()
+    }
+
+    private var libraryTab: LibraryTabState? = null
+    private var libraryTabKey: Triple<Int, AbsApi, String>? = null
+
+    /** Library tab state: built on first use, kept per (epoch, api, library), dropped by [refreshLibrary]. */
+    fun libraryTabState(): LibraryTabState? {
+        val a = api ?: return null
+        val lib = selectedLibrary ?: return null
+        val key = Triple(stateEpoch, a, lib.id)
+        libraryTab?.let { if (libraryTabKey == key) return it }
+        return LibraryTabState(
+            scope = viewModelScope,
+            initialSort = SortSpec.decode(prefs.getString("library_sort", null)),
+            saveSort = { prefs.edit().putString("library_sort", it.encode()).apply() },
+            loader = { page, limit, sort, filter ->
+                a.libraryItems(lib.id, page, limit, sort.sort.apiKey, sort.desc, filter.apiFilter)
+            },
+            fetchProgress = { a.progress() },
+        ).also { libraryTab = it; libraryTabKey = key }
+    }
 
     fun loadHome() = launchLoading { loadHomeInternal(api ?: return@launchLoading) }
 
