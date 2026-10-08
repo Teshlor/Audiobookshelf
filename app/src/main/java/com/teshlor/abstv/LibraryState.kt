@@ -5,7 +5,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 /**
@@ -76,18 +75,22 @@ class LibraryTabState(
     }
 
     /**
-     * Loads pages as needed and returns the index of the first book of [letter] (see [firstIndexForLetter]),
-     * or null if the list changed meanwhile, a page failed, or the list is empty.
+     * Loads pages as needed (up to [JUMP_PARALLEL] at once, appended in order) and returns the index of the first book
+     * of [letter] (see [firstIndexForLetter]), or null if the list changed meanwhile, a page failed, or the list is
+     * empty.
+     *
+     * Why not binary-search the server order with limit=1 probes: the grid needs every item up to the target loaded
+     * (the list is contiguous), so those pages must be fetched anyway; probing only adds serial round trips.
+     * Parallel paging costs ceil(target / 60) requests in about a quarter of the round trips.
      */
     suspend fun indexForLetter(letter: Char, settings: SortingSettings = SortingSettings.OFF): Int? {
         val v = version
-        while (true) {
-            val s = pager.state.value
-            firstIndexForLetter(s.items, letter, sort, s.endReached, settings)?.let { return it }
-            if (v != version || s.error != null || s.endReached) return null
-            pager.loadMore()
-            // A page is in flight (ours or the grid's): wait for the list to move on.
-            pager.state.first { it.items.size != s.items.size || it.endReached || it.error != null || v != version }
-        }
+        val spec = sort
+        pager.loadUntil(JUMP_PARALLEL) { s -> firstIndexForLetter(s.items, letter, spec, s.endReached, settings) != null }
+        if (v != version) return null
+        val s = pager.state.value
+        return firstIndexForLetter(s.items, letter, spec, s.endReached, settings)
     }
+
+    private companion object { const val JUMP_PARALLEL = 4 }
 }
