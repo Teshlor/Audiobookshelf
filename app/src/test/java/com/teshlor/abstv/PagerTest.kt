@@ -190,4 +190,63 @@ class PagerTest {
         assertEquals("boom", p.state.value.error)
         assertEquals(20, p.state.value.items.size) // page 1 landed; page 3 waits for the gap
     }
+
+    private fun TestScope.flaky(gates: Map<Int, CompletableDeferred<Unit>>, failOnce: MutableSet<Int>) =
+        Pager<Int>(this, 10) { page, limit ->
+            calls += page
+            gates[page]?.await()
+            if (failOnce.remove(page)) error("boom$page")
+            Page((page * 10 until page * 10 + 10).toList(), 100, limit, page)
+        }
+
+    @Test fun retryWhileOtherPagesInFlightRefetchesTheFailedPage() = runTest(StandardTestDispatcher()) {
+        val gates = mapOf(1 to CompletableDeferred<Unit>(), 3 to CompletableDeferred(), 4 to CompletableDeferred())
+        val p = flaky(gates, mutableSetOf(2))
+        p.loadMore(); advanceUntilIdle()
+        val r = async { p.loadUntil(4) { it.items.size >= 80 } }
+        advanceUntilIdle()
+        p.retry(); advanceUntilIdle()
+        assertEquals(2, calls.count { it == 2 }) // re-requested although 1, 3, 4 were still loading
+        gates.values.forEach { it.complete(Unit) }; advanceUntilIdle()
+        val s = p.state.value
+        assertNull(s.error)
+        assertEquals((0 until s.items.size).toList(), s.items) // no gap
+        assertTrue(s.items.size >= 50)
+        r.cancel()
+    }
+
+    @Test fun earlierPageLandingKeepsALaterPagesError() = runTest(StandardTestDispatcher()) {
+        val gates = mapOf(1 to CompletableDeferred<Unit>())
+        val p = flaky(gates, mutableSetOf(2))
+        p.loadMore(); advanceUntilIdle()
+        val r = async { p.loadUntil(4) { it.items.size >= 80 } }
+        advanceUntilIdle()
+        assertEquals("boom2", p.state.value.error)
+        gates.values.forEach { it.complete(Unit) }; advanceUntilIdle()
+        assertFalse(r.await())
+        assertEquals("boom2", p.state.value.error) // still surfaced after page 1 landed
+        assertEquals(20, p.state.value.items.size)
+        p.retry(); advanceUntilIdle()
+        assertNull(p.state.value.error)
+        assertTrue(p.state.value.items.size >= 30)
+        assertEquals((0 until p.state.value.items.size).toList(), p.state.value.items)
+    }
+
+    @Test fun loadUntilDoesNotHangOnShortPages() = runTest(StandardTestDispatcher()) {
+        val p = Pager<Int>(this, 10) { page, limit -> Page((page * 5 until page * 5 + 5).toList(), 100, limit, page) }
+        p.loadMore(); advanceUntilIdle()
+        val r = async { p.loadUntil(4) { it.items.size >= 80 } }
+        advanceUntilIdle()
+        assertTrue(r.isCompleted)
+        assertTrue(r.await())
+    }
+
+    @Test fun failedPageAfterTheTargetDoesNotFailTheJump() = runTest(StandardTestDispatcher()) {
+        val p = flaky(emptyMap(), mutableSetOf(4))
+        p.loadMore(); advanceUntilIdle()
+        val r = async { p.loadUntil(4) { it.items.size >= 30 } } // needs pages 1..2; page 4 (in the window) fails
+        advanceUntilIdle()
+        assertTrue(r.await())
+        assertTrue(p.state.value.items.size >= 30)
+    }
 }

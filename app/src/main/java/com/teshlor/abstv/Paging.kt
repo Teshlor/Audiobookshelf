@@ -47,6 +47,8 @@ class Pager<T>(
     private val inFlight = HashMap<Int, Job>()
     /** Pages that arrived ahead of [nextPage] (parallel loading); appended as soon as the gap closes. */
     private val buffer = HashMap<Int, Page<T>>()
+    /** Pages whose request failed (page -> message). The surfaced error is the lowest one; it clears only when [retry] refetches them. */
+    private val failed = java.util.TreeMap<Int, String>()
 
     fun onVisible(lastVisibleIndex: Int) {
         val s = _state.value
@@ -55,8 +57,8 @@ class Pager<T>(
 
     fun loadMore() {
         val s = _state.value
-        if (s.loading || s.endReached || s.error != null) return
-        fetch(nextPage)
+        if (s.endReached || s.error != null) return
+        fetch(nextPage) // deduped: a no-op while that page is in flight
     }
 
     /** Starts [page] unless it is already in flight or buffered, so no page is ever requested twice. */
@@ -75,8 +77,9 @@ class Pager<T>(
             } catch (e: Exception) {
                 if (gen != generation) return@launch
                 inFlight.remove(page)
+                failed[page] = e.message ?: e.toString()
                 _state.update {
-                    it.copy(loading = inFlight.isNotEmpty(), error = e.message ?: e.toString(), loadedOnce = true)
+                    it.copy(loading = inFlight.isNotEmpty(), error = failed.firstEntry().value, loadedOnce = true)
                 }
             }
         }
@@ -98,13 +101,13 @@ class Pager<T>(
                     items = items,
                     total = result.total,
                     loading = inFlight.isNotEmpty(),
-                    error = null,
                     loadedOnce = true,
                     endReached = result.results.isEmpty() || items.size >= result.total,
                 )
             }
         }
-        if (_state.value.endReached) buffer.clear()
+        if (_state.value.endReached) { buffer.clear(); failed.tailMap(nextPage).clear() }
+        if (_state.value.endReached && failed.isEmpty()) _state.update { it.copy(error = null) }
         if (!appended) _state.update { it.copy(loading = inFlight.isNotEmpty()) }
     }
 
@@ -120,11 +123,14 @@ class Pager<T>(
             if (gen != generation) return false
             val s = _state.value
             if (done(s)) return true
-            if (s.endReached || s.error != null) return false
+            // Only a failed page that blocks the append point ends the jump; one further on may never matter.
+            if (s.endReached || nextPage in failed) return false
             // Before the first page we don't know the total, so fetch only page 0.
             val lastPage = if (s.loadedOnce && s.total > 0) (s.total - 1) / pageSize else nextPage
             val windowEnd = minOf(lastPage, nextPage + maxParallel - 1)
-            for (p in nextPage..windowEnd) fetch(p)
+            for (p in nextPage..windowEnd) if (p !in failed) fetch(p)
+            // Short pages (server caps the limit) can leave the window empty: always keep nextPage moving.
+            if (inFlight.isEmpty() && nextPage !in buffer) fetch(nextPage)
             // Wait for the list (or error) to move on; a reset also changes it (back to empty, then loading).
             _state.first { it != s || gen != generation }
         }
@@ -132,8 +138,10 @@ class Pager<T>(
 
     /** Clears the error and retries the failed page. */
     fun retry() {
+        val pages = failed.keys.toList()
+        failed.clear()
         _state.update { it.copy(error = null) }
-        loadMore()
+        if (pages.isEmpty()) loadMore() else pages.forEach { fetch(it) }
     }
 
     /** Drops everything (sort/filter/library change) and loads page 0 again. */
@@ -142,6 +150,7 @@ class Pager<T>(
         inFlight.values.forEach { it.cancel() }
         inFlight.clear()
         buffer.clear()
+        failed.clear()
         nextPage = 0
         _state.value = PagerState()
         loadMore()
