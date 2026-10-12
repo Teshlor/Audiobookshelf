@@ -22,6 +22,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -85,8 +86,9 @@ private fun fieldColors(): androidx.compose.material3.TextFieldColors {
 @Composable
 fun LoginScreen(vm: AppViewModel) {
     val c = LocalAbsColors.current
-    var server by remember { mutableStateOf(vm.savedServer) }
-    var user by remember { mutableStateOf("") }
+    val prefill = vm.loginPrefill
+    var server by remember(prefill) { mutableStateOf(prefill.server) }
+    var user by remember(prefill) { mutableStateOf(prefill.username) }
     var pass by remember { mutableStateOf("") }
     Column(
         Modifier.fillMaxSize().padding(horizontal = 240.dp),
@@ -103,6 +105,7 @@ fun LoginScreen(vm: AppViewModel) {
             pass, { pass = it }, Modifier.fillMaxWidth(), singleLine = true, colors = fieldColors(), label = { M3Text("Password") },
             visualTransformation = PasswordVisualTransformation(),
         )
+        if (prefill.mode == LoginMode.REAUTH && vm.error == null) Text("Please sign in again", color = c.muted)
         vm.error?.let { Text(it, color = c.error) }
         AbsButton(onClick = { vm.login(server, user, pass) }) {
             Text(if (vm.loading) "Signing in…" else "Sign in")
@@ -195,4 +198,33 @@ fun formatTime(sec: Double): String {
     val m = (s % 3600) / 60
     val r = s % 60
     return if (h > 0) "%d:%02d:%02d".format(h, m, r) else "%d:%02d".format(m, r)
+}
+
+/**
+ * Stand-in "Who's listening?" picker until the real one (ProfilesScreen) lands: one button per saved profile plus
+ * Add profile. A PIN-protected profile can't be opened from here yet (no PIN entry UI).
+ */
+@Composable
+fun ProfilesPlaceholder(vm: AppViewModel) {
+    val c = LocalAbsColors.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val first = remember { FocusRequester() }
+    LaunchedEffect(Unit) { runCatching { first.requestFocus() } }
+    Column(
+        Modifier.fillMaxSize().padding(horizontal = 240.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically),
+    ) {
+        Text("Who's listening?", fontFamily = FontFamily.Serif, fontSize = 32.sp, color = c.accent)
+        vm.profiles.forEachIndexed { i, p ->
+            AbsButton(
+                onClick = {
+                    scope.launch {
+                        if (vm.switchProfile(p.id) == SwitchResult.NeedsSignIn) vm.startReauth(p.id)
+                    }
+                },
+                modifier = if (i == 0) Modifier.focusRequester(first) else Modifier,
+            ) { Text(if (p.needsSignIn) "${p.displayName} (sign in again)" else p.displayName) }
+        }
+        AbsButton(onClick = { vm.startAddProfile() }) { Text("Add profile") }
+    }
 }

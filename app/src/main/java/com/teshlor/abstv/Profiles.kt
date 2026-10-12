@@ -19,9 +19,35 @@ data class Profile(
     val accessToken: String? = null,
     val refreshToken: String? = null,
     val lastUsedAt: Long = 0,
+    /** Index into the 8 avatar colours; -1 = not assigned yet (assigned when the store loads). */
+    val colorIndex: Int = -1,
+    /** Optional PIN: PBKDF2 hash and salt (hex). The PIN itself is never stored. */
+    val pinHash: String? = null,
+    val pinSalt: String? = null,
+    /** Wrong PINs since the last success or cooldown; persisted so a restart doesn't reset the count. */
+    val pinFailures: Int = 0,
+    /** Wall-clock ms until which PIN entry is locked (0 = not locked). */
+    val pinCooldownUntil: Long = 0,
 ) {
     val needsSignIn: Boolean get() = accessToken.isNullOrEmpty()
+    val hasPin: Boolean get() = !pinHash.isNullOrEmpty() && !pinSalt.isNullOrEmpty()
 }
+
+const val AVATAR_COLOR_COUNT = 8
+
+/** First colour no saved profile uses; if all are used, `count % 8`. Never derived from the id or list position. */
+fun pickColorIndex(used: Collection<Int>, count: Int): Int =
+    (0 until AVATAR_COLOR_COUNT).firstOrNull { it !in used } ?: (count % AVATAR_COLOR_COUNT)
+
+/** "evan" -> "Evan"; mixed case is kept; empty -> "Profile N" (N = 1-based position). */
+fun profileDisplayName(username: String, position: Int): String = when {
+    username.isEmpty() -> "Profile ${position + 1}"
+    username == username.lowercase() -> username.replaceFirstChar { it.uppercase() }
+    else -> username
+}
+
+/** "http://192.168.1.10:13378" -> "192.168.1.10:13378". */
+fun hostLabel(server: String): String = server.substringAfter("://").trimEnd('/')
 
 interface ProfileStore {
     fun all(): List<Profile>
@@ -29,11 +55,20 @@ interface ProfileStore {
     val activeId: String?
 
     /** Adds the profile or, if the same account is already here, refreshes it in place (id and scoped settings kept). */
-    fun upsertFromLogin(server: String, r: LoginResult): Profile
+    fun upsertFromLogin(server: String, r: LoginResult, reauthId: String? = null): Profile
     fun updateTokens(id: String, access: String?, refresh: String?, username: String? = null)
+    fun setAccessToken(id: String, access: String?)
+    fun setRefreshToken(id: String, refresh: String?)
 
     /** Keeps the profile but forgets its tokens. */
     fun clearTokens(id: String)
+
+    /** Compare-and-clear under the store lock: only forgets the tokens if they are still exactly this pair. */
+    fun clearTokensIf(id: String, access: String?, refresh: String?): Boolean
+    fun setUsername(id: String, username: String)
+    fun setPin(id: String, hash: String, salt: String)
+    fun clearPin(id: String)
+    fun setPinAttempts(id: String, failures: Int, cooldownUntil: Long)
 
     /** Deletes the profile and its scoped settings. */
     fun remove(id: String)
@@ -58,8 +93,17 @@ abstract class BaseProfileStore(
     private val newId: () -> String,
 ) : ProfileStore {
     private val lock = Any()
-    private var list: List<Profile> = initial
+    private var list: List<Profile> = assignColors(initial)
     private var active: String? = initialActive?.takeIf { id -> initial.any { it.id == id } }
+
+    private fun assignColors(src: List<Profile>): List<Profile> {
+        if (src.none { it.colorIndex < 0 }) return src
+        val used = src.map { it.colorIndex }.filter { it >= 0 }.toMutableList()
+        return src.map { p ->
+            if (p.colorIndex >= 0) p
+            else p.copy(colorIndex = pickColorIndex(used, used.size).also { used += it })
+        }
+    }
 
     protected abstract fun persist(profiles: List<Profile>, activeId: String?)
     protected abstract fun removeScopedKeys(id: String)
@@ -68,12 +112,14 @@ abstract class BaseProfileStore(
     override fun get(id: String): Profile? = synchronized(lock) { list.firstOrNull { it.id == id } }
     override val activeId: String? get() = synchronized(lock) { active }
 
-    override fun upsertFromLogin(server: String, r: LoginResult): Profile = synchronized(lock) {
+    override fun upsertFromLogin(server: String, r: LoginResult, reauthId: String?): Profile = synchronized(lock) {
         val srv = AbsApi.normalize(server)
         val name = r.username.orEmpty()
         val match = list.firstOrNull { p ->
             AbsApi.normalize(p.server) == srv && when {
-                p.userId != null && r.userId != null -> p.userId == r.userId
+                // A migrated profile that never learned its name or id is re-authenticated by id, not by name.
+                p.id == reauthId && p.userId.isNullOrEmpty() && p.username.isEmpty() -> true
+                !p.userId.isNullOrEmpty() && !r.userId.isNullOrEmpty() -> p.userId == r.userId
                 else -> p.username.equals(name, ignoreCase = true)
             }
         }
@@ -84,10 +130,14 @@ abstract class BaseProfileStore(
                 accessToken = r.accessToken,
                 refreshToken = r.refreshToken,
                 lastUsedAt = clock(),
+                // A password login proves the owner: it clears a forgotten PIN and any lockout.
+                pinHash = null, pinSalt = null, pinFailures = 0, pinCooldownUntil = 0,
             ).also { upd -> list = list.map { if (it.id == upd.id) upd else it } }
         } else {
-            Profile(newId(), srv, r.userId, name, r.accessToken, r.refreshToken, clock())
-                .also { list = list + it }
+            Profile(
+                newId(), srv, r.userId?.takeIf { it.isNotEmpty() }, name, r.accessToken, r.refreshToken, clock(),
+                colorIndex = pickColorIndex(list.map { it.colorIndex }, list.size),
+            ).also { list = list + it }
         }
         persist(list, active)
         result
@@ -97,8 +147,25 @@ abstract class BaseProfileStore(
         it.copy(accessToken = access, refreshToken = refresh, username = username ?: it.username)
     }
 
+    override fun setAccessToken(id: String, access: String?) = mutate(id) { it.copy(accessToken = access) }
+    override fun setRefreshToken(id: String, refresh: String?) = mutate(id) { it.copy(refreshToken = refresh) }
     override fun clearTokens(id: String) = mutate(id) { it.copy(accessToken = null, refreshToken = null) }
     override fun setUserId(id: String, userId: String) = mutate(id) { it.copy(userId = userId) }
+    override fun setUsername(id: String, username: String) = mutate(id) { it.copy(username = username) }
+    override fun setPin(id: String, hash: String, salt: String) =
+        mutate(id) { it.copy(pinHash = hash, pinSalt = salt, pinFailures = 0, pinCooldownUntil = 0) }
+    override fun clearPin(id: String) =
+        mutate(id) { it.copy(pinHash = null, pinSalt = null, pinFailures = 0, pinCooldownUntil = 0) }
+    override fun setPinAttempts(id: String, failures: Int, cooldownUntil: Long) =
+        mutate(id) { it.copy(pinFailures = failures, pinCooldownUntil = cooldownUntil) }
+
+    override fun clearTokensIf(id: String, access: String?, refresh: String?): Boolean = synchronized(lock) {
+        val p = list.firstOrNull { it.id == id } ?: return@synchronized false
+        if (p.accessToken != access || p.refreshToken != refresh) return@synchronized false
+        list = list.map { if (it.id == id) it.copy(accessToken = null, refreshToken = null) else it }
+        persist(list, active)
+        true
+    }
 
     private fun mutate(id: String, f: (Profile) -> Profile) = synchronized(lock) {
         if (list.none { it.id == id }) return@synchronized
@@ -172,15 +239,21 @@ private val profileJson = Json { ignoreUnknownKeys = true; encodeDefaults = true
 private val profileListSerializer = ListSerializer(Profile.serializer())
 
 internal fun encodeProfiles(list: List<Profile>): String = profileJson.encodeToString(profileListSerializer, list)
-internal fun decodeProfiles(raw: String?): List<Profile> =
+/** [onCorrupt] gets the raw text when it can't be parsed, so the caller can keep a copy instead of silently losing it. */
+internal fun decodeProfiles(raw: String?, onCorrupt: (String) -> Unit = {}): List<Profile> =
     if (raw.isNullOrEmpty()) emptyList()
-    else try { profileJson.decodeFromString(profileListSerializer, raw) } catch (e: Exception) { emptyList() }
+    else try { profileJson.decodeFromString(profileListSerializer, raw) } catch (e: Exception) { onCorrupt(raw); emptyList() }
+
+internal const val PROFILES_CORRUPT = "profiles_corrupt"
+
+private fun loadProfiles(kv: KeyValueStore): List<Profile> =
+    decodeProfiles(kv.getString(ProfileKeys.PROFILES)) { raw -> kv.edit { it.putString(PROFILES_CORRUPT, raw) } }
 
 class PrefsProfileStore(
     private val kv: KeyValueStore,
     clock: () -> Long = System::currentTimeMillis,
     newId: () -> String = { UUID.randomUUID().toString() },
-) : BaseProfileStore(decodeProfiles(kv.getString(ProfileKeys.PROFILES)), kv.getString(ProfileKeys.ACTIVE), clock, newId) {
+) : BaseProfileStore(loadProfiles(kv),kv.getString(ProfileKeys.ACTIVE), clock, newId) {
     override fun persist(profiles: List<Profile>, activeId: String?) {
         kv.edit {
             it.putString(ProfileKeys.PROFILES, encodeProfiles(profiles))
@@ -213,7 +286,10 @@ fun migrateLegacy(
     val server = kv.getString("server")?.takeIf { it.isNotBlank() }?.let { AbsApi.normalize(it) }
     val access = kv.getString("access")?.takeIf { it.isNotEmpty() } ?: kv.getString("token")?.takeIf { it.isNotEmpty() }
     val profile = if (server != null && access != null) {
-        Profile(newId(), server, null, kv.getString("username").orEmpty(), access, kv.getString("refresh")?.takeIf { it.isNotEmpty() }, clock())
+        Profile(
+            newId(), server, null, kv.getString("username").orEmpty(), access,
+            kv.getString("refresh")?.takeIf { it.isNotEmpty() }, clock(), colorIndex = 0,
+        )
     } else null
     kv.edit(commit = true) { e ->
         e.putString(ProfileKeys.PROFILES, encodeProfiles(listOfNotNull(profile)))

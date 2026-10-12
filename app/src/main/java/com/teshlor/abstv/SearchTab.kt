@@ -119,6 +119,7 @@ class SearchViewModel(app: Application) : AndroidViewModel(app) {
     private val prefs = app.getSharedPreferences("abs", Context.MODE_PRIVATE)
     private var api: AbsApi? = null
     private var libraryId: String? = null
+    private var profileId: String? = null
     /** The (api, library, epoch) the state was last reset for. Observable so the screen can wait for [bind] after a switch. */
     var bound: List<Any?>? by mutableStateOf(null)
         private set
@@ -134,7 +135,7 @@ class SearchViewModel(app: Application) : AndroidViewModel(app) {
         private set
     var drill by mutableStateOf<Drill?>(null)
         private set
-    var recents by mutableStateOf(RecentSearches.decode(prefs.getString("recent_searches", null)))
+    var recents by mutableStateOf<List<String>>(emptyList())
         private set
 
     /** Result key to focus when the tab is shown again (after Detail or a drill-in). Consumed once. */
@@ -147,19 +148,23 @@ class SearchViewModel(app: Application) : AndroidViewModel(app) {
 
     val query: String get() = input.text
 
-    fun bind(api: AbsApi?, libraryId: String?, epoch: Int) {
-        val key = listOf(api, libraryId, epoch)
+    fun bind(api: AbsApi?, libraryId: String?, epoch: Int, profileId: String?) {
+        val key = listOf(api, libraryId, epoch, profileId)
         if (key == bound) return
         val firstBind = bound == null
         bound = key
         this.api = api
         this.libraryId = libraryId
+        this.profileId = profileId
+        recents = loadRecents() // per profile; empty with no profile
         if (firstBind) return
         counter.invalidate(); debouncer.cancel()
         input = TextFieldValue(""); phase = SearchPhase.Idle; searching = false; drill = null
         restoreKey = null; focusResultsPending = false
-        recents = RecentSearches.decode(prefs.getString("recent_searches", null)) // empty after logout cleared it
     }
+
+    private fun loadRecents(): List<String> =
+        profileId?.let { RecentSearches.decode(prefs.getString(ProfileKeys.scoped("recent_searches", it), null)) } ?: emptyList()
 
     fun onFieldChange(v: TextFieldValue) {
         val changed = v.text != input.text
@@ -216,12 +221,12 @@ class SearchViewModel(app: Application) : AndroidViewModel(app) {
 
     fun rememberQuery(q: String) {
         recents = RecentSearches.add(recents, q)
-        prefs.edit().putString("recent_searches", RecentSearches.encode(recents)).apply()
+        profileId?.let { prefs.edit().putString(ProfileKeys.scoped("recent_searches", it), RecentSearches.encode(recents)).apply() }
     }
 
     fun clearRecents() {
         recents = emptyList()
-        prefs.edit().remove("recent_searches").apply()
+        profileId?.let { prefs.edit().remove(ProfileKeys.scoped("recent_searches", it)).apply() }
     }
 
     /** A series result opens the Series detail screen (same as the Series tab); Back returns here with focus restored. */
@@ -294,7 +299,7 @@ fun SearchTab(vm: AppViewModel) {
     val activity = LocalContext.current as ComponentActivity
     val sv = remember(activity) { ViewModelProvider(activity)[SearchViewModel::class.java] }
     // State writes belong in an effect, not in composition (bind is idempotent per api/library/epoch).
-    LaunchedEffect(vm.api, vm.selectedLibrary?.id, vm.stateEpoch) { sv.bind(vm.api, vm.selectedLibrary?.id, vm.stateEpoch) }
+    LaunchedEffect(vm.api, vm.selectedLibrary?.id, vm.stateEpoch, vm.currentProfileId) { sv.bind(vm.api, vm.selectedLibrary?.id, vm.stateEpoch, vm.currentProfileId) }
     // After a library switch or re-login show nothing until bind() has reset the query, so the old one never flashes.
     if (sv.bound != listOf(vm.api, vm.selectedLibrary?.id, vm.stateEpoch)) {
         Box(Modifier.fillMaxSize())

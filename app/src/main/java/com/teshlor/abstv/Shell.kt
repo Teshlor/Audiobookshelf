@@ -211,7 +211,7 @@ fun Shell(vm: AppViewModel, content: @Composable () -> Unit) {
     }
 
     if (confirmLogout) LogoutDialog(
-        onConfirm = { confirmLogout = false; vm.logout() },
+        onConfirm = { confirmLogout = false; vm.signOutCurrent() },
         onCancel = { confirmLogout = false },
     )
 }

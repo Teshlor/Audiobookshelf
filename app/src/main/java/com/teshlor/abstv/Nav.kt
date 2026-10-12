@@ -25,6 +25,8 @@ sealed interface Screen {
     data class Browse(val tab: Tab) : Screen { override val key get() = "tab:${tab.name}" }
     data class SeriesBooks(val seriesId: String, val name: String) : Screen { override val key get() = "series:$seriesId" }
     data class CollectionBooks(val collection: BookCollection) : Screen { override val key get() = "collection:${collection.id}" }
+    /** "Who's listening?" picker. */
+    data object Profiles : Screen { override val key = "profiles" }
     data object Detail : Screen { override val key = "detail" }
     data object Player : Screen { override val key = "player" }
 }

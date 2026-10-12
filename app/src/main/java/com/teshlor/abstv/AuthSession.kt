@@ -31,6 +31,13 @@ interface TokenStore {
 
     /** Forgets the tokens but keeps the server URL so the login form stays prefilled. */
     fun clearTokens()
+
+    /** Forgets the tokens only if they are still exactly this pair; true if it did. Stores that can override it atomically. */
+    fun clearTokensIf(access: String?, refresh: String?): Boolean {
+        if (accessToken != access || refreshToken != refresh) return false
+        clearTokens()
+        return true
+    }
 }
 
 /** SharedPreferences "abs": keys `server` and `token` (legacy) already existed; `access`, `refresh`, `username` are new. */
@@ -74,6 +81,13 @@ class MemoryTokenStore(
 
     @Synchronized
     override fun clearTokens() { accessToken = null; refreshToken = null }
+
+    @Synchronized
+    override fun clearTokensIf(access: String?, refresh: String?): Boolean {
+        if (accessToken != access || refreshToken != refresh) return false
+        clearTokens()
+        return true
+    }
 }
 
 /**
@@ -98,10 +112,10 @@ class ProfileTokenStore(private val profiles: ProfileStore, val profileId: Strin
         set(_) {}
     override var accessToken: String?
         get() = profile?.accessToken
-        set(v) { profiles.updateTokens(profileId, v, refreshToken) }
+        set(v) { profiles.setAccessToken(profileId, v) }
     override var refreshToken: String?
         get() = profile?.refreshToken
-        set(v) { profiles.updateTokens(profileId, accessToken, v) }
+        set(v) { profiles.setRefreshToken(profileId, v) }
     override var username: String?
         get() = profile?.username
         set(_) {}
@@ -111,6 +125,7 @@ class ProfileTokenStore(private val profiles: ProfileStore, val profileId: Strin
     }
 
     override fun clearTokens() = profiles.clearTokens(profileId)
+    override fun clearTokensIf(access: String?, refresh: String?): Boolean = profiles.clearTokensIf(profileId, access, refresh)
 }
 
 /**
@@ -168,8 +183,7 @@ class AuthSession(val store: TokenStore, private val onExpired: () -> Unit = {})
 
     /** Only signs out if the stored pair is still the one that failed, so a stale failure can't wipe a newer login. */
     private fun expireIfUnchanged(access: String, refresh: String?) {
-        if (store.accessToken != access || store.refreshToken != refresh) return
-        store.clearTokens()
+        if (!store.clearTokensIf(access, refresh)) return
         onExpired()
     }
 
