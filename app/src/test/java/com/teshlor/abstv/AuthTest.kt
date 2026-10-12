@@ -185,4 +185,46 @@ class AuthTest {
         assertTrue(shouldShowError(true, AbsHttpException(500)))
         assertTrue(shouldShowError(true, java.io.IOException("offline")))
     }
+
+    // --- per-profile sessions ---
+
+    private fun twoProfiles(s: MockWebServer): Triple<ProfileStore, AbsApi, AbsApi> {
+        val url = s.url("/").toString().trimEnd('/')
+        val ps = MemoryProfileStore(listOf(
+            Profile("A", url, "ua", "alice", "old-acc", "old-ref"),
+            Profile("B", url, "ub", "bob", "b-acc", "b-ref"),
+        ))
+        fun api(id: String) = AbsApi(url, AuthSession(ProfileTokenStore(ps, id)) { expiredIds.add(id) })
+        return Triple(ps, api("A"), api("B"))
+    }
+
+    private val expiredIds = java.util.Collections.synchronizedList(mutableListOf<String>())
+
+    @Test fun refreshOnOneProfileWritesOnlyItsOwnTokens() = runBlocking {
+        val s = start(okRefresh)
+        val (ps, a, _) = twoProfiles(s)
+        a.me()
+        assertEquals("new-acc", ps.get("A")!!.accessToken)
+        assertEquals("new-ref", ps.get("A")!!.refreshToken)
+        assertEquals("b-acc", ps.get("B")!!.accessToken)
+        assertEquals("b-ref", ps.get("B")!!.refreshToken)
+        assertTrue(expiredIds.isEmpty())
+    }
+
+    @Test fun deadRefreshExpiresOnlyThatProfile() {
+        val s = start { MockResponse().setResponseCode(401) }
+        val (ps, a, _) = twoProfiles(s)
+        try { runBlocking { a.me() }; org.junit.Assert.fail("expected 401") } catch (e: AbsHttpException) { }
+        assertEquals(listOf("A"), expiredIds.toList())
+        assertTrue(ps.get("A")!!.needsSignIn)
+        assertEquals("alice", ps.get("A")!!.username)
+        assertEquals("b-acc", ps.get("B")!!.accessToken)
+        assertEquals("b-ref", ps.get("B")!!.refreshToken)
+    }
+
+    @Test fun parseTokensReturnsUserId() {
+        val r = AuthSession.parseTokens("""{"user":{"id":"u-7","username":"evan","accessToken":"x","refreshToken":"y"}}""")
+        assertEquals("u-7", r.userId)
+        assertNull(AuthSession.parseTokens("""{"user":{"accessToken":"x"}}""").userId)
+    }
 }

@@ -145,7 +145,7 @@ sealed interface Shelf {
     val isFinished: Boolean = false,
 )
 
-@Serializable data class Me(val username: String = "", val mediaProgress: List<MediaProgress> = emptyList())
+@Serializable data class Me(val username: String = "", val mediaProgress: List<MediaProgress> = emptyList(), val id: String = "")
 
 enum class ProgressState { NOT_STARTED, IN_PROGRESS, FINISHED }
 

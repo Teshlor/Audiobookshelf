@@ -83,7 +83,35 @@ class MemoryTokenStore(
 fun shouldShowError(authExpired: Boolean, e: Throwable): Boolean =
     !(authExpired && e is AbsHttpException && e.code == 401)
 
-data class LoginResult(val accessToken: String, val refreshToken: String?, val username: String?)
+data class LoginResult(val accessToken: String, val refreshToken: String?, val username: String?, val userId: String? = null)
+
+/**
+ * One profile's slice of a [ProfileStore] as a [TokenStore]. Reads and writes only that profile, so a late refresh or
+ * expiry on profile A can never touch profile B. [clearTokens] keeps the profile (it then needs sign-in).
+ * [server] and [username] are read-only views: a profile's server is fixed, and the name is set by login.
+ */
+class ProfileTokenStore(private val profiles: ProfileStore, val profileId: String) : TokenStore {
+    private val profile get() = profiles.get(profileId)
+
+    override var server: String
+        get() = profile?.server.orEmpty()
+        set(_) {}
+    override var accessToken: String?
+        get() = profile?.accessToken
+        set(v) { profiles.updateTokens(profileId, v, refreshToken) }
+    override var refreshToken: String?
+        get() = profile?.refreshToken
+        set(v) { profiles.updateTokens(profileId, accessToken, v) }
+    override var username: String?
+        get() = profile?.username
+        set(_) {}
+
+    override fun saveTokens(access: String, refresh: String?, username: String?) {
+        profiles.updateTokens(profileId, access, refresh, username)
+    }
+
+    override fun clearTokens() = profiles.clearTokens(profileId)
+}
 
 /**
  * Adds the Bearer access token to every request and, on a 401, refreshes it once (single-flight) and retries.
@@ -165,7 +193,7 @@ class AuthSession(val store: TokenStore, private val onExpired: () -> Unit = {})
                 ?: throw IOException("Response had no user")
             fun s(k: String) = (user[k] as? JsonPrimitive)?.takeIf { it.isString }?.content
             val access = s("accessToken") ?: throw IOException("Response had no access token")
-            return LoginResult(access, s("refreshToken"), s("username"))
+            return LoginResult(access, s("refreshToken"), s("username"), s("id"))
         }
     }
 }
