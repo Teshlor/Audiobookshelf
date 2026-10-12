@@ -79,11 +79,20 @@ class PinService(
 
     fun hasPin(id: String): Boolean = store.get(id)?.hasPin == true
 
-    /** Remaining cooldown end for [id], or null if entry is open. Guards against the clock having been set back. */
-    fun cooldownUntil(id: String): Long? {
+    /**
+     * Cooldown end for [id], or null if entry is open. If the stored end is further out than one cooldown (the clock was
+     * set back), it is clamped AND written back, so the lock ends 30 s from now instead of rolling forward.
+     */
+    fun cooldownUntil(id: String): Long? = synchronized(lock) {
         val p = store.get(id) ?: return null
         val now = clock()
-        return if (p.pinCooldownUntil > now) minOf(p.pinCooldownUntil, now + PIN_COOLDOWN_MS) else null
+        if (p.pinCooldownUntil <= now) return null
+        val max = now + PIN_COOLDOWN_MS
+        if (p.pinCooldownUntil > max) {
+            store.setPinAttempts(id, p.pinFailures, max)
+            return max
+        }
+        p.pinCooldownUntil
     }
 
     /**

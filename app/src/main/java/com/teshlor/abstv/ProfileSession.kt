@@ -71,10 +71,13 @@ fun shouldShowPickerOnForeground(
     nowMs: Long,
     playing: Boolean,
     current: Screen,
+    stackSize: Int = 1,
 ): Boolean {
     if (backgroundedAtMs == null || playing) return false
     if (!pickerNeeded(profiles)) return false
-    if (current == Screen.Profiles || current == Screen.Login) return false
+    if (current == Screen.Profiles) return false
+    // A Login at the stack root has no profile behind it. One pushed over an open profile does: Back would pop into it, so reset.
+    if (current == Screen.Login && stackSize <= 1) return false
     return nowMs - backgroundedAtMs >= PICKER_AFTER_BACKGROUND_MS
 }
 

@@ -115,14 +115,17 @@ abstract class BaseProfileStore(
     override fun upsertFromLogin(server: String, r: LoginResult, reauthId: String?): Profile = synchronized(lock) {
         val srv = AbsApi.normalize(server)
         val name = r.username.orEmpty()
-        val match = list.firstOrNull { p ->
-            AbsApi.normalize(p.server) == srv && when {
-                // A migrated profile that never learned its name or id is re-authenticated by id, not by name.
-                p.id == reauthId && p.userId.isNullOrEmpty() && p.username.isEmpty() -> true
-                !p.userId.isNullOrEmpty() && !r.userId.isNullOrEmpty() -> p.userId == r.userId
-                else -> p.username.equals(name, ignoreCase = true)
-            }
+        fun sameAccount(p: Profile) = AbsApi.normalize(p.server) == srv && when {
+            !p.userId.isNullOrEmpty() && !r.userId.isNullOrEmpty() -> p.userId == r.userId
+            else -> p.username.equals(name, ignoreCase = true)
         }
+        // A migrated profile that never learned its name or id is re-authenticated by id (the only way to recover it),
+        // but only if no OTHER saved profile already is this account: then the login merges into that one instead, so
+        // someone else's sign-in can't inherit this profile's scoped settings.
+        val match = list.firstOrNull { sameAccount(it) }
+            ?: list.firstOrNull { p ->
+                p.id == reauthId && p.userId.isNullOrEmpty() && p.username.isEmpty() && AbsApi.normalize(p.server) == srv
+            }
         val result = if (match != null) {
             match.copy(
                 userId = r.userId ?: match.userId,
@@ -253,7 +256,7 @@ class PrefsProfileStore(
     private val kv: KeyValueStore,
     clock: () -> Long = System::currentTimeMillis,
     newId: () -> String = { UUID.randomUUID().toString() },
-) : BaseProfileStore(loadProfiles(kv),kv.getString(ProfileKeys.ACTIVE), clock, newId) {
+) : BaseProfileStore(loadProfiles(kv), kv.getString(ProfileKeys.ACTIVE), clock, newId) {
     override fun persist(profiles: List<Profile>, activeId: String?) {
         kv.edit {
             it.putString(ProfileKeys.PROFILES, encodeProfiles(profiles))

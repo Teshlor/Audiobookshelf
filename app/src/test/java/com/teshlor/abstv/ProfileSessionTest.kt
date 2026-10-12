@@ -51,6 +51,29 @@ class ProfileSessionTest {
         assertTrue(shouldShowPickerOnForeground(listOf(p("1", pin = true)), 0, hour, false, home)) // a lone PIN profile still gates
     }
 
+    @Test fun loginPushedOverAnOpenProfileStillGetsThePicker() {
+        // Login at the stack root has nothing behind it; pushed over a profile, Back would pop into it without a PIN.
+        assertFalse(shouldShowPickerOnForeground(two, 0, 10 * hour, false, Screen.Login, stackSize = 1))
+        assertTrue(shouldShowPickerOnForeground(two, 0, 10 * hour, false, Screen.Login, stackSize = 2))
+        assertTrue(shouldShowPickerOnForeground(listOf(p("1", pin = true)), 0, hour, false, Screen.Login, stackSize = 2))
+    }
+
+    @Test fun searchBindKeyIncludesTheProfile() {
+        val a = Any()
+        assertEquals(searchBindKey(a, "lib", 1, "p1"), searchBindKey(a, "lib", 1, "p1"))
+        assertFalse(searchBindKey(a, "lib", 1, "p1") == searchBindKey(a, "lib", 1, "p2"))
+    }
+
+    @Test fun reauthOfNamelessProfileMergesIntoAnExistingMatchingAccount() {
+        val evan = p("E", name = "evan", userId = "u1")
+        val nameless = p("M", name = "", access = null, userId = null)
+        val s = PrefsProfileStore(MapKeyValue(linkedMapOf("profiles" to encodeProfiles(listOf(evan, nameless)))))
+        val r = s.upsertFromLogin("http://h:1", LoginResult("a2", "r2", "evan", "u1"), reauthId = "M")
+        assertEquals("E", r.id) // merged into the existing account, not the nameless one
+        assertTrue(s.get("M")!!.needsSignIn)
+        assertEquals("", s.get("M")!!.username)
+    }
+
     // --- login prefill ---
     @Test fun loginPrefill() {
         val all = listOf(p("1", name = ""), p("2", name = "sam"))

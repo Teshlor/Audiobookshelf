@@ -142,6 +142,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Drops everything that belongs to the open profile. Does not touch the stack or the stored profiles. */
     private fun resetSessionState() {
+        loginJob?.cancel()
         player.stop()
         sessionScope.cancel()
         sessionScope = newSessionScope()
@@ -235,6 +236,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /** Cancel / Back on an ADD or REAUTH sign-in that was pushed over another screen. False when there is nothing to go back to. */
     fun cancelLogin(): Boolean {
         if (screen != Screen.Login) return false
+        loginJob?.cancel() // a cancelled Add profile must not sign in afterwards
+        loading = false
         error = null
         if (!stack.pop()) return false
         loginPrefill = LoginPrefill()
@@ -293,7 +296,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun onAppForeground(nowMs: Long): Boolean {
         val since = backgroundedAt
         backgroundedAt = null
-        if (!shouldShowPickerOnForeground(profileStore.all(), since, nowMs, player.isPlaying, screen)) return false
+        if (!shouldShowPickerOnForeground(profileStore.all(), since, nowMs, player.isPlaying, screen, stack.size)) return false
         showScreenAfterReset(Screen.Profiles)
         refreshProfiles()
         return true
@@ -318,13 +321,28 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Signs in and opens that profile. A login for an account already on this TV refreshes it in place (and clears its PIN). */
-    fun login(server: String, username: String, password: String) = launchLoading {
-        authExpired = false
-        val r = AbsApi(server).login(username, password)
+    private var loginJob: Job? = null
+
+    fun login(server: String, username: String, password: String) {
+        loginJob?.cancel()
         val reauthId = loginPrefill.takeIf { it.mode == LoginMode.REAUTH }?.profileId
-        val p = profileStore.upsertFromLogin(server, r, reauthId)
-        prefs.edit().putString(ProfileKeys.LAST_SERVER, p.server).apply()
-        enterProfile(p)
+        // Not in sessionScope: entering the profile resets that scope. Cancelled by cancelLogin() and resetSessionState().
+        loginJob = viewModelScope.launch {
+            loading = true
+            error = null
+            authExpired = false
+            try {
+                val r = AbsApi(server).login(username, password)
+                val p = profileStore.upsertFromLogin(server, r, reauthId)
+                prefs.edit().putString(ProfileKeys.LAST_SERVER, p.server).apply()
+                enterProfile(p)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                loading = false
+                error = e.message ?: e.toString()
+            }
+        }
     }
 
 
@@ -414,7 +432,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /** Re-reads /api/me into the shared [progress] map (every tab's cards read it) and returns it. Throws on failure. */
     suspend fun refreshProgress(): ProgressMap {
         val a = api ?: return progress
-        return a.progress().also { progress = it }
+        val p = a.progress()
+        if (api === a) progress = p // a switch while this was in flight must not land A's progress in B
+        return p
     }
 
     /** [refreshProgress] for tabs that treat progress as decoration: a failure keeps the previous map. */

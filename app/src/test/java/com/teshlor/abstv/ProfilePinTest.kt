@@ -87,11 +87,15 @@ class ProfilePinTest {
         assertEquals(SwitchResult.CoolingDown(now + 30_000), service(store()).gate(p.id, null))
     }
 
-    @Test fun cooldownIsCappedIfTheClockWasSetBack() {
+    @Test fun cooldownIsCappedAndRewrittenIfTheClockWasSetBack() {
         val s = store(); val p = withProfile(s); val svc = service(s)
         svc.setPin(p.id, "1234")
         s.setPinAttempts(p.id, 0, now + 10 * 60_000)
         assertEquals(now + 30_000, svc.cooldownUntil(p.id))
+        assertEquals(now + 30_000, s.get(p.id)!!.pinCooldownUntil) // persisted, not a rolling window
+        now += 30_000
+        assertNull(svc.cooldownUntil(p.id))
+        assertEquals(SwitchResult.Switched, svc.gate(p.id, "1234"))
     }
 
     @Test fun gateRules() {

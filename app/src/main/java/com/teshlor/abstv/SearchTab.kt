@@ -149,7 +149,7 @@ class SearchViewModel(app: Application) : AndroidViewModel(app) {
     val query: String get() = input.text
 
     fun bind(api: AbsApi?, libraryId: String?, epoch: Int, profileId: String?) {
-        val key = listOf(api, libraryId, epoch, profileId)
+        val key = searchBindKey(api, libraryId, epoch, profileId)
         if (key == bound) return
         val firstBind = bound == null
         bound = key
@@ -301,7 +301,7 @@ fun SearchTab(vm: AppViewModel) {
     // State writes belong in an effect, not in composition (bind is idempotent per api/library/epoch).
     LaunchedEffect(vm.api, vm.selectedLibrary?.id, vm.stateEpoch, vm.currentProfileId) { sv.bind(vm.api, vm.selectedLibrary?.id, vm.stateEpoch, vm.currentProfileId) }
     // After a library switch or re-login show nothing until bind() has reset the query, so the old one never flashes.
-    if (sv.bound != listOf(vm.api, vm.selectedLibrary?.id, vm.stateEpoch)) {
+    if (sv.bound != searchBindKey(vm.api, vm.selectedLibrary?.id, vm.stateEpoch, vm.currentProfileId)) {
         Box(Modifier.fillMaxSize())
         return
     }
@@ -708,3 +708,7 @@ private fun NarratorPill(m: NarratorMatch, query: String, requester: FocusReques
         }
     }
 }
+
+/** The one place the Search tab's (api, library, epoch, profile) identity is built, so bind() and the render gate can't drift apart. */
+internal fun searchBindKey(api: Any?, libraryId: String?, epoch: Int, profileId: String?): List<Any?> =
+    listOf(api, libraryId, epoch, profileId)
