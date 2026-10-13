@@ -159,8 +159,10 @@ fun Shell(vm: AppViewModel, content: @Composable () -> Unit) {
                     .fillMaxHeight()
                     .background(if (expanded) c.sheet else Color.Transparent)
                     .padding(horizontal = 16.dp, vertical = 24.dp)
-                    // Entering the rail from the content lands on the current tab, not the nearest item.
-                    .focusProperties { enter = { requesters.getValue(tab) } }
+                    // Entering the rail from the content lands on the current tab, not the nearest item. Only while the menu
+                    // rows are composed: in the library / profile lists the tab requesters are unattached and focusing one
+                    // throws ("FocusRequester is not initialized"), so fall back to the default nearest-item search.
+                    .focusProperties { enter = { if (railMode == RailMode.MENU) requesters.getValue(tab) else FocusRequester.Default } }
                     .focusGroup(),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
