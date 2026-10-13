@@ -2,10 +2,13 @@ package com.teshlor.abstv
 
 import java.security.MessageDigest
 import java.security.SecureRandom
-import javax.crypto.SecretKeyFactory
-import javax.crypto.spec.PBEKeySpec
+import javax.crypto.Mac
+import javax.crypto.spec.SecretKeySpec
 
-/** Salted PBKDF2WithHmacSHA256. The PIN itself is never stored or logged. */
+/**
+ * Salted PBKDF2-HMAC-SHA256, written over Mac("HmacSHA256") because SecretKeyFactory only offers it from API 26 and
+ * minSdk is 23. The PIN itself is never stored or logged.
+ */
 object PinCrypto {
     const val ITERATIONS = 20_000
     private const val SALT_BYTES = 16
@@ -13,13 +16,31 @@ object PinCrypto {
 
     fun newSalt(random: SecureRandom = SecureRandom()): ByteArray = ByteArray(SALT_BYTES).also { random.nextBytes(it) }
 
-    fun hash(pin: String, salt: ByteArray, iterations: Int = ITERATIONS): ByteArray {
-        val spec = PBEKeySpec(pin.toCharArray(), salt, iterations, KEY_BITS)
-        try {
-            return SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256").generateSecret(spec).encoded
-        } finally {
-            spec.clearPassword()
+    fun hash(pin: String, salt: ByteArray, iterations: Int = ITERATIONS): ByteArray =
+        pbkdf2Sha256(pin.toByteArray(Charsets.UTF_8), salt, iterations, KEY_BITS / 8)
+
+    /** RFC 8018 PBKDF2 with HMAC-SHA-256 as the PRF. */
+    fun pbkdf2Sha256(password: ByteArray, salt: ByteArray, iterations: Int, dkLen: Int): ByteArray {
+        require(iterations >= 1 && dkLen >= 1)
+        // An empty HMAC key is rejected by SecretKeySpec; HMAC pads it with zeros anyway, so one zero byte is equivalent.
+        val mac = Mac.getInstance("HmacSHA256")
+        mac.init(SecretKeySpec(if (password.isEmpty()) ByteArray(1) else password, "HmacSHA256"))
+        val hLen = mac.macLength
+        val blocks = (dkLen + hLen - 1) / hLen
+        val out = ByteArray(dkLen)
+        for (i in 1..blocks) {
+            mac.update(salt)
+            mac.update(byteArrayOf((i ushr 24).toByte(), (i ushr 16).toByte(), (i ushr 8).toByte(), i.toByte()))
+            var u = mac.doFinal()
+            val t = u.copyOf()
+            for (n in 2..iterations) {
+                u = mac.doFinal(u)
+                for (k in t.indices) t[k] = (t[k].toInt() xor u[k].toInt()).toByte()
+            }
+            val off = (i - 1) * hLen
+            System.arraycopy(t, 0, out, off, minOf(hLen, dkLen - off))
         }
+        return out
     }
 
     fun toHex(b: ByteArray): String = b.joinToString("") { "%02x".format(it) }
@@ -106,19 +127,20 @@ class PinService(
         val p = store.get(id) ?: return SwitchResult.NeedsSignIn
         if (!p.hasPin) return SwitchResult.Switched
         cooldownUntil(id)?.let { return SwitchResult.CoolingDown(it) }
+        // Count the try BEFORE hashing and write it to disk, so killing the app mid-check still costs a try.
+        val counted = p.pinFailures + 1
+        store.setPinAttempts(id, counted, 0)
         val ok = isValidPin(pin) && PinCrypto.matches(pin, p.pinSalt!!, p.pinHash!!, iterations)
         if (ok) {
-            if (p.pinFailures != 0 || p.pinCooldownUntil != 0L) store.setPinAttempts(id, 0, 0)
+            store.setPinAttempts(id, 0, 0) // roll back
             return SwitchResult.Switched
         }
-        val failures = p.pinFailures + 1
-        if (failures >= PIN_MAX_FAILURES) {
+        if (counted >= PIN_MAX_FAILURES) {
             val until = clock() + PIN_COOLDOWN_MS
             store.setPinAttempts(id, 0, until)
             SwitchResult.CoolingDown(until)
         } else {
-            store.setPinAttempts(id, failures, 0)
-            SwitchResult.WrongPin(PIN_MAX_FAILURES - failures)
+            SwitchResult.WrongPin(PIN_MAX_FAILURES - counted)
         }
     }
 

@@ -386,7 +386,7 @@ private fun railItemColors(c: AbsColors, expanded: Boolean) = NavigationDrawerIt
  * Add profile, and Sign out at the bottom. Focus starts on the first other profile (Add profile when alone).
  */
 @Composable
-private fun NavigationDrawerScope.ProfileList(vm: AppViewModel, listModifier: Modifier, onSignOut: () -> Unit) {
+private fun NavigationDrawerScope.ProfileList(vm: AppViewModel, modifier: Modifier, onSignOut: () -> Unit) {
     val c = LocalAbsColors.current
     val drawer = this
     val me = vm.currentProfile
@@ -406,7 +406,7 @@ private fun NavigationDrawerScope.ProfileList(vm: AppViewModel, listModifier: Mo
     if (others.isNotEmpty()) {
         Text("SWITCH TO", fontSize = 12.sp, lineHeight = 16.sp, letterSpacing = 1.6.sp, color = c.muted, modifier = Modifier.padding(start = 16.dp, top = 4.dp))
     }
-    LazyColumn(listModifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    LazyColumn(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         itemsIndexed(others, key = { _, p -> p.id }) { i, p ->
             with(drawer) { OtherProfileRow(p, if (i == 0) Modifier.focusRequester(first) else Modifier) { vm.chooseProfile(p.id) } }
         }

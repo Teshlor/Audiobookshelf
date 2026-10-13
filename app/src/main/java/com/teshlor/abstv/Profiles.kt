@@ -105,7 +105,8 @@ abstract class BaseProfileStore(
         }
     }
 
-    protected abstract fun persist(profiles: List<Profile>, activeId: String?)
+    /** [sync] = write to disk before returning (the PIN try count: a kill right after must not lose it). */
+    protected abstract fun persist(profiles: List<Profile>, activeId: String?, sync: Boolean)
     protected abstract fun removeScopedKeys(id: String)
 
     override fun all(): List<Profile> = synchronized(lock) { list }
@@ -143,7 +144,7 @@ abstract class BaseProfileStore(
                 colorIndex = pickColorIndex(list.map { it.colorIndex }, list.size),
             ).also { list = list + it }
         }
-        persist(list, active)
+        persist(list, active, false)
         result
     }
 
@@ -161,27 +162,27 @@ abstract class BaseProfileStore(
     override fun clearPin(id: String) =
         mutate(id) { it.copy(pinHash = null, pinSalt = null, pinFailures = 0, pinCooldownUntil = 0) }
     override fun setPinAttempts(id: String, failures: Int, cooldownUntil: Long) =
-        mutate(id) { it.copy(pinFailures = failures, pinCooldownUntil = cooldownUntil) }
+        mutate(id, sync = true) { it.copy(pinFailures = failures, pinCooldownUntil = cooldownUntil) }
 
     override fun clearTokensIf(id: String, access: String?, refresh: String?): Boolean = synchronized(lock) {
         val p = list.firstOrNull { it.id == id } ?: return@synchronized false
         if (p.accessToken != access || p.refreshToken != refresh) return@synchronized false
         list = list.map { if (it.id == id) it.copy(accessToken = null, refreshToken = null) else it }
-        persist(list, active)
+        persist(list, active, false)
         true
     }
 
-    private fun mutate(id: String, f: (Profile) -> Profile) = synchronized(lock) {
+    private fun mutate(id: String, sync: Boolean = false, f: (Profile) -> Profile) = synchronized(lock) {
         if (list.none { it.id == id }) return@synchronized
         list = list.map { if (it.id == id) f(it) else it }
-        persist(list, active)
+        persist(list, active, sync)
     }
 
     override fun remove(id: String) {
         synchronized(lock) {
             list = list.filterNot { it.id == id }
             if (active == id) active = null
-            persist(list, active)
+            persist(list, active, false)
         }
         removeScopedKeys(id)
     }
@@ -189,7 +190,7 @@ abstract class BaseProfileStore(
     override fun setActive(id: String?) = synchronized(lock) {
         active = id?.takeIf { want -> list.any { it.id == want } }
         if (active != null) list = list.map { if (it.id == active) it.copy(lastUsedAt = clock()) else it }
-        persist(list, active)
+        persist(list, active, false)
     }
 }
 
@@ -199,7 +200,7 @@ class MemoryProfileStore(
     clock: () -> Long = System::currentTimeMillis,
     newId: () -> String = { UUID.randomUUID().toString() },
 ) : BaseProfileStore(initial, initialActive, clock, newId) {
-    override fun persist(profiles: List<Profile>, activeId: String?) {}
+    override fun persist(profiles: List<Profile>, activeId: String?, sync: Boolean) {}
     override fun removeScopedKeys(id: String) {}
 }
 
@@ -258,8 +259,8 @@ class PrefsProfileStore(
     clock: () -> Long = System::currentTimeMillis,
     newId: () -> String = { UUID.randomUUID().toString() },
 ) : BaseProfileStore(loadProfiles(kv), kv.getString(ProfileKeys.ACTIVE), clock, newId) {
-    override fun persist(profiles: List<Profile>, activeId: String?) {
-        kv.edit {
+    override fun persist(profiles: List<Profile>, activeId: String?, sync: Boolean) {
+        kv.edit(commit = sync) {
             it.putString(ProfileKeys.PROFILES, encodeProfiles(profiles))
             if (activeId == null) it.remove(ProfileKeys.ACTIVE) else it.putString(ProfileKeys.ACTIVE, activeId)
         }

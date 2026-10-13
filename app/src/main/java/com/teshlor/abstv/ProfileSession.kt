@@ -130,3 +130,19 @@ fun loginErrorMessage(mode: LoginMode, e: Throwable): String {
         "That password didn\u2019t work. Check it and try again."
     } else e.message ?: e.toString()
 }
+
+/**
+ * Forgot PIN: may a login with [r] on [server] stand in for [target]? No if it is another saved account (never rewrite a
+ * different profile). A target that never learned its name or id accepts any account that isn't already saved elsewhere;
+ * otherwise it must be the target's own account.
+ */
+fun forgotLoginMatches(target: Profile, all: List<Profile>, server: String, r: LoginResult): Boolean {
+    val srv = AbsApi.normalize(server)
+    fun same(p: Profile) = AbsApi.normalize(p.server) == srv && when {
+        !p.userId.isNullOrEmpty() && !r.userId.isNullOrEmpty() -> p.userId == r.userId
+        else -> p.username.equals(r.username.orEmpty(), ignoreCase = true)
+    }
+    if (all.any { it.id != target.id && same(it) }) return false
+    if (target.userId.isNullOrEmpty() && target.username.isEmpty()) return true
+    return same(target)
+}

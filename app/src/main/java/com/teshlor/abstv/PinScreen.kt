@@ -67,7 +67,11 @@ import kotlinx.coroutines.launch
 /** Hosts [PinScreen] for the view model's current [PinTask]. A new step or notice starts a fresh pad. */
 @Composable
 fun PinTaskScreen(vm: AppViewModel) {
-    val task = vm.pinTask ?: return
+    val task = vm.pinTask
+    if (task == null) {
+        LaunchedEffect(Unit) { vm.leaveStalePin() }
+        return
+    }
     val who = vm.profiles.firstOrNull { it.id == task.profileId } ?: return
     key(task) {
         PinScreen(
@@ -144,6 +148,7 @@ fun PinScreen(
     }
 
     fun press(d: Char) {
+        if (successText != null) return // the 600 ms "PIN set" hold: no more input, hardware keys included
         val next = pad.press(d, System.currentTimeMillis())
         if (next != pad) {
             message = null; messageIsError = false; wrong = false
@@ -151,6 +156,7 @@ fun PinScreen(
         }
     }
     fun backspace() {
+        if (successText != null) return
         val next = pad.delete(System.currentTimeMillis())
         if (next != pad) { message = null; messageIsError = false; wrong = false; pad = next }
     }

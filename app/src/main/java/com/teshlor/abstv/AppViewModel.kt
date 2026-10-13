@@ -157,6 +157,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         loading = false
         signingIn = false
         pinTask = null; pinPending = null
+        savedPrefills.clear()
         api = null
         currentProfileId = null
         username = ""
@@ -230,6 +231,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private var switchJob: Job? = null
+    private val savedPrefills = ArrayList<LoginPrefill>()
 
     /**
      * Shows the Switching screen for at least [SWITCH_MIN_MS] (so it never flickers), then opens [id]'s Home. Call only
@@ -282,7 +284,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         error = null
         if (stack.size > 1) {
             stack.pop()
-            loginPrefill = LoginPrefill()
+            restorePrefillAfterForgot()
         } else {
             authExpired = false
             routeFromStorage()
@@ -334,7 +336,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun startPinTask(task: PinTask) {
         pinTask = task
         pinPending = null
-        stack.push(Screen.Pin)
+        if (screen != Screen.Pin) stack.push(Screen.Pin) // a double OK must not stack two pads
+    }
+
+    /** The PIN pad was recomposed with no run behind it (e.g. Cancel on a sign-in lands on it): leave it. */
+    fun leaveStalePin() {
+        if (pinTask == null && screen == Screen.Pin) stack.pop()
     }
 
     /** Settings rows. They act on the open profile. */
@@ -424,6 +431,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /** "Forgot PIN?": the account password for this profile, then a new PIN. */
     fun startForgotPin() {
         val task = pinTask ?: return
+        // A Sign in again form may sit under the PIN pad: keep its prefill so Cancel brings it back as it was.
+        savedPrefills.add(loginPrefill)
         loginPrefill = loginPrefillFor(LoginMode.FORGOT_PIN, profileStore.all(), currentProfileId, lastServer, task.profileId)
         error = null
         stack.push(Screen.Login)
@@ -488,6 +497,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             authExpired = false
             try {
                 val r = AbsApi(server).login(username, password)
+                if (prefill.mode == LoginMode.FORGOT_PIN) {
+                    // Check who this really is BEFORE touching any profile: it must be the profile's own account.
+                    val target = targetId?.let { profileStore.get(it) }
+                    if (target == null || !forgotLoginMatches(target, profileStore.all(), server, r)) {
+                        throw IllegalStateException("That password belongs to a different account.")
+                    }
+                }
                 val p = profileStore.upsertFromLogin(server, r, targetId)
                 prefs.edit().putString(ProfileKeys.LAST_SERVER, p.server).apply()
                 when {
@@ -498,7 +514,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     }
                     prefill.mode == LoginMode.ADD && p.id !in before -> {
                         // Someone new: offer a PIN before opening them (not for an account that was already here).
-                        signingIn = false
+                        resetSessionState() // the previous profile's player and session don't linger behind the offer
                         loginPrefill = LoginPrefill()
                         stack.reset(Screen.AddPinOffer(p.id)); stateEpoch++
                         refreshProfiles()
@@ -516,10 +532,16 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         loginJob = job
     }
 
+    /** Back from a Forgot PIN form: whatever sign-in form was under the PIN pad gets its own prefill back. */
+    private fun restorePrefillAfterForgot() {
+        val wasForgot = loginPrefill.mode == LoginMode.FORGOT_PIN
+        loginPrefill = if (wasForgot) savedPrefills.removeLastOrNull() ?: LoginPrefill() else LoginPrefill()
+    }
+
     /** Forgot PIN's password was accepted: pop the form and carry on with the PIN run. */
     private fun finishForgotPin() {
         val task = pinTask
-        loginPrefill = LoginPrefill()
+        restorePrefillAfterForgot()
         signingIn = false
         stack.pop() // the sign-in form
         refreshProfiles()
