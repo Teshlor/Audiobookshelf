@@ -133,8 +133,9 @@ abstract class BaseProfileStore(
                 accessToken = r.accessToken,
                 refreshToken = r.refreshToken,
                 lastUsedAt = clock(),
-                // A password login proves the owner: it clears a forgotten PIN and any lockout.
-                pinHash = null, pinSalt = null, pinFailures = 0, pinCooldownUntil = 0,
+                // A password login proves the owner, so it ends any lockout. The PIN itself is kept: only the Forgot PIN
+                // flow replaces or removes it (after a new one is confirmed), never an ordinary sign-in.
+                pinFailures = 0, pinCooldownUntil = 0,
             ).also { upd -> list = list.map { if (it.id == upd.id) upd else it } }
         } else {
             Profile(

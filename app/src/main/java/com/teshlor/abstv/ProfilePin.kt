@@ -77,6 +77,9 @@ class PinService(
 
     fun clearPin(id: String) = synchronized(lock) { store.clearPin(id) }
 
+    /** The account password was accepted (Forgot PIN): the wrong-try count and any cooldown start over. The PIN stays. */
+    fun resetAttempts(id: String) = synchronized(lock) { store.setPinAttempts(id, 0, 0) }
+
     fun hasPin(id: String): Boolean = store.get(id)?.hasPin == true
 
     /**

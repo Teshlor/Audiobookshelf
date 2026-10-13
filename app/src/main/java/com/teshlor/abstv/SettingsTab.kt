@@ -4,7 +4,11 @@ package com.teshlor.abstv
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Row
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
@@ -50,14 +54,28 @@ fun SettingsTab(vm: AppViewModel) {
     val ctx = LocalContext.current
     val focus = remember { FocusRequester() }
     val scope = rememberCoroutineScope()
-    LaunchedEffect(Unit) { focus.requestWhenReady() }
+    val pinFocus = remember { FocusRequester() }
+    val hasProfile = vm.currentProfile != null
+    LaunchedEffect(Unit) { (if (hasProfile) pinFocus else focus).requestWhenReady() }
     val version = remember { runCatching { ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName }.getOrNull().orEmpty() }
     Column(Modifier.padding(start = 112.dp, top = 32.dp, end = 48.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text("SETTINGS", fontSize = 12.sp, letterSpacing = 1.6.sp, color = c.muted)
         Text("Settings", fontFamily = FontFamily.Serif, fontSize = 30.sp, lineHeight = 36.sp)
         Box(Modifier.padding(top = 8.dp))
-        InfoRow("Server", vm.api?.baseUrl.orEmpty(), if (vm.username.isNotEmpty()) "Signed in as ${vm.username}" else null)
-        // The one actionable row, so it takes the initial focus.
+        val me = vm.currentProfile
+        if (me != null) {
+            ProfileHeader(me)
+            // The first row you can act on takes the initial focus: Set a PIN, or Change PIN (also where focus lands after a change).
+            if (!me.hasPin) {
+                SettingsRow("Set a PIN", "Ask for a PIN when someone picks ${me.displayName}", Modifier.focusRequester(pinFocus)) { vm.startSetPin() }
+            } else {
+                SettingsRow("Change PIN", "Enter the current PIN, then a new one", Modifier.focusRequester(pinFocus)) { vm.startChangePin() }
+                SettingsRow("Remove PIN", "Then anyone on this TV can open ${me.displayName}") { vm.startRemovePin() }
+            }
+            Box(Modifier.padding(vertical = 8.dp).width(520.dp).padding(start = 20.dp).height(1.dp).background(c.hairline))
+        } else {
+            InfoRow("Server", vm.api?.baseUrl.orEmpty(), if (vm.username.isNotEmpty()) "Signed in as ${vm.username}" else null)
+        }
         Surface(
             onClick = { vm.refreshLibrary() },
             modifier = Modifier.width(560.dp).focusRequester(focus),
@@ -99,6 +117,52 @@ fun SettingsTab(vm: AppViewModel) {
             onCancel = { picking = false; scope.launch { themeFocus.requestWhenReady() } },
         )
         InfoRow("About", "Audiobookshelf TV $version", null)
+    }
+}
+
+/** Avatar, name with the PIN status chip, and "username - host" (design 13.6). Not focusable. */
+@Composable
+private fun ProfileHeader(me: ProfileSummary) {
+    val c = LocalAbsColors.current
+    Row(Modifier.width(560.dp).padding(horizontal = 20.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        ProfileAvatar(me, 48.dp)
+        Column(Modifier.padding(start = 16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                Text(me.displayName, fontFamily = FontFamily.Serif, fontSize = 22.sp, lineHeight = 28.sp, color = c.onSurface)
+                val shape = RoundedCornerShape(14.dp)
+                Row(
+                    Modifier.height(28.dp)
+                        .then(if (me.hasPin) Modifier.background(c.trayColor, shape) else Modifier.border(1.dp, c.outlineColor, shape))
+                        .padding(horizontal = 12.dp).semantics { contentDescription = if (me.hasPin) "PIN on" else "No PIN" },
+                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Icon(if (me.hasPin) ProfileIcons.lock else ProfileIcons.lockOpen, null, tint = if (me.hasPin) c.accent else c.muted, modifier = Modifier.size(16.dp))
+                    Text(if (me.hasPin) "PIN on" else "No PIN", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = if (me.hasPin) c.onSurface else c.muted)
+                }
+            }
+            Text("${me.username.ifEmpty { me.displayName }} \u00b7 ${me.host}", fontSize = 12.sp, lineHeight = 16.sp, color = c.muted)
+        }
+    }
+}
+
+@Composable
+private fun SettingsRow(title: String, subtitle: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val c = LocalAbsColors.current
+    Surface(
+        onClick = onClick,
+        modifier = modifier.width(560.dp),
+        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(12.dp)),
+        colors = ClickableSurfaceDefaults.colors(
+            containerColor = c.surface, contentColor = c.onSurface,
+            focusedContainerColor = c.accent, focusedContentColor = c.onAccent,
+            pressedContainerColor = c.accent, pressedContentColor = c.onAccent,
+        ),
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.02f),
+    ) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp)) {
+            Text(title, fontSize = 15.sp)
+            Text(subtitle, fontSize = 12.sp)
+        }
     }
 }
 

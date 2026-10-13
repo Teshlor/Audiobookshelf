@@ -76,10 +76,15 @@ class MainActivity : ComponentActivity() {
     @Composable
     private fun Root() {
         val saveable = rememberSaveableStateHolder()
-        // Every non-root screen pops itself; tab roots, the open rail and the library switcher are handled by Shell.
-        BackHandler(enabled = vm.screen !is Screen.Browse && vm.screen != Screen.Login && vm.screen != Screen.Profiles) { vm.back() }
-        // An Add profile / sign-in-again form opened over another screen: Back returns to it.
-        BackHandler(enabled = vm.screen == Screen.Login && vm.stack.size > 1) { vm.cancelLogin() }
+        // Detail, Player and the series / collection pages pop themselves; tab roots, the open rail and the library and
+        // profile lists are handled by Shell; the picker (Back exits), the PIN pad, Switching and "Add a PIN?" by their own screens.
+        BackHandler(
+            enabled = vm.screen == Screen.Detail || vm.screen == Screen.Player ||
+                vm.screen is Screen.SeriesBooks || vm.screen is Screen.CollectionBooks,
+        ) { vm.back() }
+        // A sign-in opened over another screen (Add profile, Sign in again, Forgot PIN): Back returns to it. At the root
+        // (an expired session) Back goes to the picker when there are other profiles; with just one it exits as before.
+        BackHandler(enabled = vm.screen == Screen.Login && (vm.stack.size > 1 || vm.profiles.size >= 2)) { vm.cancelLogin() }
         // A popped series or collection detail drops its saved scroll position and remembered focus.
         // (logout and selectLibrary reset the stack BEFORE bumping stateEpoch, so the keys below still match.)
         DisposableEffect(saveable) {
@@ -92,14 +97,23 @@ class MainActivity : ComponentActivity() {
             onDispose { vm.stack.onRemoved = null }
         }
         // Header band on Login and Home only; everything else gets the plain bg.
-        ThemeDecor(vm.theme, showBand = vm.screen == Screen.Login || vm.screen == Screen.Profiles || vm.screen == Screen.Browse(Tab.HOME))
+        // (The Login family: sign-in, picker, PIN pad, Switching and "Add a PIN?".)
+        val s0 = vm.screen
+        ThemeDecor(
+            vm.theme,
+            showBand = s0 == Screen.Login || s0 == Screen.Profiles || s0 == Screen.Pin || s0 is Screen.Switching ||
+                s0 is Screen.AddPinOffer || s0 == Screen.Browse(Tab.HOME),
+        )
         // Per-screen saved state keeps scroll positions across Detail -> Back.
         // The epoch changes on logout and library switch, so Home starts fresh (scroll position) after either.
         val s = vm.screen
         val stateKey = "${s.key}#${vm.stateEpoch}"
         when (s) {
             Screen.Login -> saveable.SaveableStateProvider(stateKey) { LoginScreen(vm) }
-            Screen.Profiles -> saveable.SaveableStateProvider(stateKey) { ProfilesPlaceholder(vm) }
+            Screen.Profiles -> saveable.SaveableStateProvider(stateKey) { ProfilesScreen(vm) }
+            Screen.Pin -> saveable.SaveableStateProvider(stateKey) { PinTaskScreen(vm) }
+            is Screen.Switching -> saveable.SaveableStateProvider(stateKey) { SwitchingScreen(vm, s) }
+            is Screen.AddPinOffer -> saveable.SaveableStateProvider(stateKey) { AddPinOfferScreen(vm, s) }
             // ONE Shell for every screen that has the rail, so switching tabs keeps the same drawer, focus requesters and
             // coroutines. (A Shell per screen key was disposed on every tab switch, which left the new rail unable to take
             // focus: D-pad Left did nothing after choosing a tab with OK.)

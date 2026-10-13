@@ -17,6 +17,9 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -73,9 +76,9 @@ import androidx.tv.material3.rememberDrawerState
 import kotlinx.coroutines.launch
 
 // Colours derived from the six theme tokens (HANDOFF section 7), so every theme works unchanged.
-private val AbsColors.sheet get() = lerp(bg, surface, 0.30f)
-private val AbsColors.hairline get() = lerp(bg, onSurface, 0.12f)
-private val AbsColors.selectedPill get() = lerp(sheet, accent, 0.16f)
+internal val AbsColors.sheet get() = lerp(bg, surface, 0.30f)
+internal val AbsColors.hairline get() = lerp(bg, onSurface, 0.12f)
+internal val AbsColors.selectedPill get() = lerp(sheet, accent, 0.16f)
 
 private val RailCollapsed = 88.dp
 private val ContentStart = 112.dp
@@ -98,7 +101,8 @@ fun Shell(vm: AppViewModel, content: @Composable () -> Unit) {
     LaunchedEffect(vm.screen.key) { returnFocus.last = null } // a new screen starts with nothing to return to
     val railExpanded = remember { BooleanArray(1) } // what the drawer is actually showing (its currentValue can lag the focus-driven expand)
     var confirmLogout by remember { mutableStateOf(false) }
-    var switching by remember { mutableStateOf(false) }
+    var railMode by remember { mutableStateOf(RailMode.MENU) }
+    val profileReq = remember { FocusRequester() }
     val open = drawerState.currentValue == DrawerValue.Open
 
     /**
@@ -107,7 +111,7 @@ fun Shell(vm: AppViewModel, content: @Composable () -> Unit) {
      * request lands nowhere, leaving the next D-pad press to just "wake" focus.
      */
     fun closeRailToContent() {
-        switching = false // Right from the library switcher must not leave the collapsed rail showing library rows
+        railMode = RailMode.MENU // Right from the library / profile list must not leave the collapsed rail showing its rows
         drawerState.setValue(DrawerValue.Closed)
         scope.launch {
             snapshotFlow { drawerState.currentValue }.first { it == DrawerValue.Closed }
@@ -132,9 +136,10 @@ fun Shell(vm: AppViewModel, content: @Composable () -> Unit) {
 
     // Back (PLAN section 2): content opens the rail on the current tab; on the rail, non-Home goes Home, Home exits.
     // Series detail (not a tab root) handles Back itself, unless the rail is open.
-    BackHandler(enabled = !confirmLogout && (vm.screen is Screen.Browse || open || switching)) {
+    BackHandler(enabled = !confirmLogout && (vm.screen is Screen.Browse || open || railMode != RailMode.MENU)) {
         when {
-            switching -> { switching = false; scope.launch { requesters.getValue(tab).requestWhenReady() } }
+            railMode == RailMode.LIBRARIES -> { railMode = RailMode.MENU; scope.launch { requesters.getValue(tab).requestWhenReady() } }
+            railMode == RailMode.PROFILES -> { railMode = RailMode.MENU; scope.launch { profileReq.requestWhenReady() } }
             !open -> openRail()
             tab != Tab.HOME -> { vm.selectTab(Tab.HOME); closeRailToContent() }
             else -> activity?.finish()
@@ -159,12 +164,14 @@ fun Shell(vm: AppViewModel, content: @Composable () -> Unit) {
                     .focusGroup(),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                if (switching) {
+                if (railMode == RailMode.LIBRARIES) {
                     LibraryList(vm) { lib ->
-                        switching = false
+                        railMode = RailMode.MENU
                         vm.selectLibrary(lib)
                         closeRailToContent()
                     }
+                } else if (railMode == RailMode.PROFILES) {
+                    ProfileList(vm, Modifier.weight(1f), onSignOut = { confirmLogout = true })
                 } else {
                     if (vm.libraries.size > 1) {
                         RailItemRow(
@@ -172,7 +179,7 @@ fun Shell(vm: AppViewModel, content: @Composable () -> Unit) {
                             description = "Library: ${vm.selectedLibrary?.name}. Switch library.",
                             icon = null, initial = vm.selectedLibrary?.name?.firstOrNull()?.uppercase() ?: "L",
                             selected = false, expanded = expanded, requester = null,
-                        ) { switching = true }
+                        ) { railMode = RailMode.LIBRARIES }
                         Divider(expanded)
                     }
                     Tab.entries.filter { it.enabled && it != Tab.SETTINGS }.forEach { t ->
@@ -193,10 +200,7 @@ fun Shell(vm: AppViewModel, content: @Composable () -> Unit) {
                         if (tab != Tab.SETTINGS) vm.selectTab(Tab.SETTINGS)
                         closeRailToContent()
                     }
-                    RailItemRow(
-                        label = "Log out", description = "Log out", icon = NavIcons.logout, selected = false,
-                        expanded = expanded, requester = null,
-                    ) { confirmLogout = true }
+                    ProfileRailRow(vm.currentProfile, others = vm.profiles.size > 1, requester = profileReq) { railMode = RailMode.PROFILES }
                 }
             }
         },
@@ -210,10 +214,18 @@ fun Shell(vm: AppViewModel, content: @Composable () -> Unit) {
         ) { CompositionLocalProvider(LocalRailOpen provides open, LocalReturnFocus provides returnFocus) { content() } }
     }
 
-    if (confirmLogout) LogoutDialog(
-        onConfirm = { confirmLogout = false; vm.signOutCurrent() },
-        onCancel = { confirmLogout = false },
-    )
+    if (confirmLogout) {
+        val who = vm.currentProfile
+        val name = who?.displayName ?: "this profile"
+        ConfirmDialog(
+            who = who,
+            title = "Sign out $name?",
+            body = "$name\u2019s profile will be removed from this TV. Listening progress stays saved on your server.",
+            confirmLabel = "Sign out",
+            onConfirm = { confirmLogout = false; vm.signOutCurrent() },
+            onCancel = { confirmLogout = false },
+        )
+    }
 }
 
 /**
@@ -328,27 +340,143 @@ private fun NavigationDrawerScope.LibraryList(vm: AppViewModel, onPick: (Library
     )
 }
 
+/** What the open rail sheet shows: the nav items, the library list, or the profile list (design 4.3). */
+enum class RailMode { MENU, LIBRARIES, PROFILES }
+
+/** Your avatar row where Log out used to be: two lines, never selected. OK swaps the sheet to the profile list. */
 @Composable
-private fun LogoutDialog(onConfirm: () -> Unit, onCancel: () -> Unit) {
+private fun NavigationDrawerScope.ProfileRailRow(p: ProfileSummary?, others: Boolean, requester: FocusRequester, onClick: () -> Unit) {
     val c = LocalAbsColors.current
-    val cancel = remember { FocusRequester() }
-    LaunchedEffect(Unit) { cancel.requestWhenReady() }
-    Dialog(onDismissRequest = onCancel, properties = DialogProperties(usePlatformDefaultWidth = false)) { // Back = Cancel
-        Box(Modifier.fillMaxSize().background(c.bg.copy(alpha = 0.78f)), contentAlignment = Alignment.Center) {
-            Column(
-                Modifier.width(440.dp)
-                    .background(c.sheet, RoundedCornerShape(20.dp))
-                    .border(1.dp, c.hairline, RoundedCornerShape(20.dp))
-                    .padding(28.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Text("Log out?", fontFamily = FontFamily.Serif, fontSize = 26.sp, lineHeight = 32.sp)
-                Text("You'll need to sign in again to listen.", fontSize = 15.sp, color = c.muted)
-                Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    AbsButton(onClick = onConfirm) { Text("Log out") }
-                    AbsButton(onClick = onCancel, modifier = Modifier.focusRequester(cancel)) { Text("Cancel") }
-                }
+    var focused by remember { mutableStateOf(false) }
+    NavigationDrawerItem(
+        selected = false,
+        onClick = onClick,
+        modifier = Modifier.focusRequester(requester).onFocusChanged { focused = it.hasFocus }
+            .semantics { contentDescription = "Profile: ${p?.displayName.orEmpty()}. ${if (others) "Switch profile." else "Add profile or sign out."}" },
+        leadingContent = { if (p != null) ProfileAvatar(p, 32.dp, bgRing = true) },
+        supportingContent = {
+            Text(if (others) "Switch profile" else "Add profile or sign out", fontSize = 12.sp, color = if (focused) c.onAccent else c.muted, maxLines = 1)
+        },
+        colors = railItemColors(c, expanded = true),
+        scale = NavigationDrawerItemDefaults.scale(focusedScale = 1.05f),
+    ) {
+        Text(p?.displayName.orEmpty(), fontSize = 15.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+@Composable
+private fun railItemColors(c: AbsColors, expanded: Boolean) = NavigationDrawerItemDefaults.colors(
+    containerColor = Color.Transparent,
+    contentColor = c.onSurface,
+    inactiveContentColor = c.muted,
+    selectedContainerColor = if (expanded) c.selectedPill else Color.Transparent,
+    selectedContentColor = c.accent,
+    focusedContainerColor = c.accent,
+    focusedContentColor = c.onAccent,
+    focusedSelectedContainerColor = c.accent,
+    focusedSelectedContentColor = c.onAccent,
+    pressedContainerColor = c.accent,
+    pressedContentColor = c.onAccent,
+    pressedSelectedContainerColor = c.accent,
+    pressedSelectedContentColor = c.onAccent,
+)
+
+/**
+ * The profile list that replaces the nav items in the open sheet (design 4.3): who you are, the others to switch to,
+ * Add profile, and Sign out at the bottom. Focus starts on the first other profile (Add profile when alone).
+ */
+@Composable
+private fun NavigationDrawerScope.ProfileList(vm: AppViewModel, listModifier: Modifier, onSignOut: () -> Unit) {
+    val c = LocalAbsColors.current
+    val drawer = this
+    val me = vm.currentProfile
+    val others = vm.profiles.filter { !it.isCurrent }
+    val first = remember { FocusRequester() }
+    LaunchedEffect(Unit) { first.requestWhenReady() }
+    if (me != null) {
+        Row(Modifier.padding(start = 8.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            ProfileAvatar(me, 56.dp)
+            Column(Modifier.padding(start = 16.dp)) {
+                Text(me.displayName, fontFamily = FontFamily.Serif, fontSize = 22.sp, lineHeight = 28.sp, color = c.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text("${me.username.ifEmpty { me.displayName }} \u00b7 ${me.host}", fontSize = 12.sp, lineHeight = 16.sp, color = c.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
     }
+    Divider(true)
+    if (others.isNotEmpty()) {
+        Text("SWITCH TO", fontSize = 12.sp, lineHeight = 16.sp, letterSpacing = 1.6.sp, color = c.muted, modifier = Modifier.padding(start = 16.dp, top = 4.dp))
+    }
+    LazyColumn(listModifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        itemsIndexed(others, key = { _, p -> p.id }) { i, p ->
+            with(drawer) { OtherProfileRow(p, if (i == 0) Modifier.focusRequester(first) else Modifier) { vm.chooseProfile(p.id) } }
+        }
+        item(key = "add") {
+            with(drawer) {
+                SimpleListRow(
+                    label = "Add profile", supporting = null, icon = ProfileIcons.personAdd, description = "Add profile",
+                    modifier = if (others.isEmpty()) Modifier.focusRequester(first) else Modifier,
+                ) { vm.startAddProfile() }
+            }
+        }
+        item(key = "hint") {
+            Text(
+                "Back returns to the menu without switching.", fontSize = 12.sp, lineHeight = 17.sp, color = c.muted,
+                modifier = Modifier.padding(start = 16.dp, top = 6.dp).width(224.dp),
+            )
+        }
+    }
+    Divider(true)
+    with(drawer) {
+        SimpleListRow(
+            label = "Sign out", supporting = "Removes ${me?.displayName.orEmpty()} from this TV", icon = NavIcons.logout,
+            description = "Sign out ${me?.displayName.orEmpty()}. Removes ${me?.displayName.orEmpty()} from this TV.",
+            onClick = onSignOut,
+        )
+    }
+}
+
+@Composable
+private fun NavigationDrawerScope.OtherProfileRow(p: ProfileSummary, modifier: Modifier, onClick: () -> Unit) {
+    val c = LocalAbsColors.current
+    var focused by remember { mutableStateOf(false) }
+    val tint = if (focused) c.onAccent else if (p.needsSignIn) c.accent else c.muted
+    NavigationDrawerItem(
+        selected = false,
+        onClick = onClick,
+        modifier = modifier.onFocusChanged { focused = it.hasFocus }
+            .semantics { contentDescription = if (p.needsSignIn || p.hasPin) p.a11yLabel().let { if (p.needsSignIn) it else "Switch to $it" } else "Switch to ${p.displayName}" },
+        leadingContent = { ProfileAvatar(p, 32.dp, bgRing = true) },
+        supportingContent = if (p.needsSignIn) {
+            { Text("Sign in again", fontSize = 12.sp, color = if (focused) c.onAccent else c.muted, maxLines = 1) }
+        } else null,
+        trailingContent = when {
+            p.needsSignIn -> ({ Icon(ProfileIcons.errorBadge, null, tint = tint, modifier = Modifier.size(18.dp)) })
+            p.hasPin -> ({ Icon(ProfileIcons.lock, null, tint = tint, modifier = Modifier.size(18.dp)) })
+            else -> null
+        },
+        colors = railItemColors(c, expanded = true),
+        scale = NavigationDrawerItemDefaults.scale(focusedScale = 1.05f),
+    ) { Text(p.displayName, fontSize = 15.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+}
+
+@Composable
+private fun NavigationDrawerScope.SimpleListRow(
+    label: String,
+    supporting: String?,
+    icon: ImageVector,
+    description: String,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
+    val c = LocalAbsColors.current
+    var focused by remember { mutableStateOf(false) }
+    NavigationDrawerItem(
+        selected = false,
+        onClick = onClick,
+        modifier = modifier.onFocusChanged { focused = it.hasFocus }.semantics { contentDescription = description },
+        leadingContent = { Icon(icon, contentDescription = null) },
+        supportingContent = supporting?.let { s -> { Text(s, fontSize = 12.sp, color = if (focused) c.onAccent else c.muted, maxLines = 1, overflow = TextOverflow.Ellipsis) } },
+        colors = railItemColors(c, expanded = true),
+        scale = NavigationDrawerItemDefaults.scale(focusedScale = 1.05f),
+    ) { Text(label, fontSize = 15.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis) }
 }

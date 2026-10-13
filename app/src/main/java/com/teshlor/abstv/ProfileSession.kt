@@ -81,7 +81,8 @@ fun shouldShowPickerOnForeground(
     return nowMs - backgroundedAtMs >= PICKER_AFTER_BACKGROUND_MS
 }
 
-enum class LoginMode { FIRST, ADD, REAUTH }
+/** FORGOT_PIN: the account password for a profile whose PIN was forgotten (then the PIN is chosen again). */
+enum class LoginMode { FIRST, ADD, REAUTH, FORGOT_PIN }
 
 /** What the Login screen starts with; replaces the old `savedServer`. */
 data class LoginPrefill(
@@ -93,6 +94,8 @@ data class LoginPrefill(
     val profileId: String? = null,
     val displayName: String = "",
     val colorIndex: Int = 0,
+    /** REAUTH / FORGOT_PIN: the profile has a PIN (decides whether "Remove from this TV" asks for it). */
+    val hasPin: Boolean = false,
 )
 
 fun loginPrefillFor(
@@ -103,14 +106,27 @@ fun loginPrefillFor(
     targetId: String? = null,
 ): LoginPrefill = when (mode) {
     LoginMode.FIRST -> LoginPrefill(LoginMode.FIRST, server = lastServer)
-    LoginMode.ADD -> LoginPrefill(LoginMode.ADD, server = profiles.firstOrNull { it.id == currentId }?.server ?: lastServer)
-    LoginMode.REAUTH -> {
+    LoginMode.ADD -> LoginPrefill(
+        LoginMode.ADD,
+        server = profiles.firstOrNull { it.id == currentId }?.server ?: lastServer,
+        // The colour the new profile will get (the preview avatar in the header).
+        colorIndex = pickColorIndex(profiles.map { it.colorIndex }.filter { it >= 0 }, profiles.size),
+    )
+    LoginMode.REAUTH, LoginMode.FORGOT_PIN -> {
         val i = profiles.indexOfFirst { it.id == targetId }
         val p = profiles.getOrNull(i)
         if (p == null) LoginPrefill(LoginMode.FIRST, server = lastServer)
         else LoginPrefill(
-            LoginMode.REAUTH, p.server, p.username, p.id,
-            profileDisplayName(p.username, i), p.colorIndex.coerceIn(0, AVATAR_COLOR_COUNT - 1),
+            mode, p.server, p.username, p.id,
+            profileDisplayName(p.username, i), p.colorIndex.coerceIn(0, AVATAR_COLOR_COUNT - 1), p.hasPin,
         )
     }
+}
+
+/** The line under the form after a failed sign-in. A rejected password on Sign in again / Forgot PIN gets the designed copy. */
+fun loginErrorMessage(mode: LoginMode, e: Throwable): String {
+    val rejected = e is AbsHttpException && (e.code == 400 || e.code == 401 || e.code == 403)
+    return if (rejected && (mode == LoginMode.REAUTH || mode == LoginMode.FORGOT_PIN)) {
+        "That password didn\u2019t work. Check it and try again."
+    } else e.message ?: e.toString()
 }

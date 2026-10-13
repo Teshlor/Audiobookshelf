@@ -84,6 +84,10 @@ class ProfileSessionTest {
         assertEquals(LoginMode.REAUTH, re.mode); assertEquals("sam", re.username); assertEquals("2", re.profileId); assertEquals("Sam", re.displayName)
         assertEquals("Profile 1", loginPrefillFor(LoginMode.REAUTH, all, null, "x", "1").displayName)
         assertEquals(LoginMode.FIRST, loginPrefillFor(LoginMode.REAUTH, all, null, "x", "gone").mode)
+        val forgot = loginPrefillFor(LoginMode.FORGOT_PIN, all, "1", "x", "2")
+        assertEquals(LoginMode.FORGOT_PIN, forgot.mode); assertEquals("2", forgot.profileId); assertEquals("sam", forgot.username)
+        // ADD previews the colour the new profile will get: the first one nobody uses
+        assertEquals(1, loginPrefillFor(LoginMode.ADD, all, "1", "x").colorIndex)
     }
 
     // --- summaries / names / colours ---

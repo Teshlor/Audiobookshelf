@@ -29,7 +29,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -83,34 +89,157 @@ private fun fieldColors(): androidx.compose.material3.TextFieldColors {
     )
 }
 
+/**
+ * One sign-in screen for four situations (design/profiles/HANDOFF.md 4.5, 4.6, 13.4): the very first sign-in (as it always
+ * was), Add profile, Sign in again (password only, plus "Remove from this TV"), and Forgot PIN (password only).
+ */
 @Composable
 fun LoginScreen(vm: AppViewModel) {
     val c = LocalAbsColors.current
     val prefill = vm.loginPrefill
+    val mode = prefill.mode
     var server by remember(prefill) { mutableStateOf(prefill.server) }
     var user by remember(prefill) { mutableStateOf(prefill.username) }
     var pass by remember { mutableStateOf("") }
-    Column(
-        Modifier.fillMaxSize().padding(horizontal = 240.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically),
-    ) {
-        Text("Audiobookshelf", fontFamily = FontFamily.Serif, fontSize = 32.sp, color = c.accent)
+    var confirmRemove by remember { mutableStateOf(false) }
+    val first = remember { FocusRequester() }
+    val who = vm.profiles.firstOrNull { it.id == prefill.profileId }
+    val passwordOnly = (mode == LoginMode.REAUTH || mode == LoginMode.FORGOT_PIN) && prefill.username.isNotEmpty()
+    val canCancel = when (mode) {
+        LoginMode.FIRST -> false
+        LoginMode.REAUTH -> vm.stack.size > 1 || vm.profiles.size >= 2 // the only profile: nowhere to cancel to
+        else -> true
+    }
+    LaunchedEffect(mode) { if (mode != LoginMode.FIRST) first.requestWhenReady() }
+
+    fun submit() {
+        if (!vm.signingIn) vm.login(server, if (passwordOnly) prefill.username else user, pass)
+    }
+    val imeDone = KeyboardActions(onDone = { submit() })
+
+    @Composable
+    fun PasswordField(modifier: Modifier = Modifier) {
         OutlinedTextField(
-            server, { server = it }, Modifier.fillMaxWidth(), singleLine = true, colors = fieldColors(),
-            label = { M3Text("Server (e.g. 192.168.1.10:13378)") },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-        )
-        OutlinedTextField(user, { user = it }, Modifier.fillMaxWidth(), singleLine = true, colors = fieldColors(), label = { M3Text("Username") })
-        OutlinedTextField(
-            pass, { pass = it }, Modifier.fillMaxWidth(), singleLine = true, colors = fieldColors(), label = { M3Text("Password") },
+            pass, { pass = it }, modifier.fillMaxWidth(), singleLine = true, colors = fieldColors(), label = { M3Text("Password") },
             visualTransformation = PasswordVisualTransformation(),
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done), keyboardActions = imeDone,
         )
-        if (prefill.mode == LoginMode.REAUTH && vm.error == null) Text("Please sign in again", color = c.muted)
-        vm.error?.let { Text(it, color = c.error) }
-        AbsButton(onClick = { vm.login(server, user, pass) }) {
-            Text(if (vm.loading) "Signing in…" else "Sign in")
+    }
+
+    @Composable
+    fun ErrorLine() {
+        vm.error?.let { Text(it, fontSize = 14.sp, lineHeight = 20.sp, color = c.error, modifier = Modifier.padding(top = 8.dp)) }
+    }
+
+    when (mode) {
+        LoginMode.FIRST -> Column(
+            Modifier.fillMaxSize().padding(horizontal = 240.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically),
+        ) {
+            Text("Audiobookshelf", fontFamily = FontFamily.Serif, fontSize = 32.sp, color = c.accent)
+            OutlinedTextField(
+                server, { server = it }, Modifier.fillMaxWidth(), singleLine = true, colors = fieldColors(),
+                label = { M3Text("Server (e.g. 192.168.1.10:13378)") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Next),
+            )
+            OutlinedTextField(
+                user, { user = it }, Modifier.fillMaxWidth(), singleLine = true, colors = fieldColors(), label = { M3Text("Username") },
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+            )
+            PasswordField()
+            vm.error?.let { Text(it, color = c.error) }
+            AbsButton(onClick = { submit() }) { Text(if (vm.signingIn) "Signing in…" else "Sign in") }
+        }
+
+        LoginMode.ADD -> Column(Modifier.fillMaxSize().padding(start = 240.dp, end = 240.dp, top = 84.dp)) {
+            LoginHeader("AUDIOBOOKSHELF", "Add a profile") {
+                // Previews the colour the new profile will get; the initial follows the username as it is typed.
+                val initial = user.trim().firstOrNull()?.uppercase()
+                if (initial == null) DashedCircle(64.dp, ProfileIcons.person, 24.dp, c.muted)
+                else AvatarCircle(initial, true, prefill.colorIndex, 64.dp)
+            }
+            Text(
+                "Sign in with your own Audiobookshelf account. It stays on this TV, so next time you just pick your name.",
+                fontSize = 15.sp, lineHeight = 22.sp, color = c.muted, modifier = Modifier.padding(top = 18.dp).width(480.dp),
+            )
+            Column(Modifier.padding(top = 20.dp).width(480.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedTextField(
+                    server, { server = it }, Modifier.fillMaxWidth(), singleLine = true, colors = fieldColors(),
+                    label = { M3Text("Server (e.g. 192.168.1.10:13378)") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Next),
+                )
+                OutlinedTextField(
+                    user, { user = it }, Modifier.fillMaxWidth().focusRequester(first), singleLine = true, colors = fieldColors(),
+                    label = { M3Text("Username") }, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                )
+                PasswordField()
+            }
+            ErrorLine()
+            Row(Modifier.padding(top = 20.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                AbsButton(onClick = { submit() }) { Text(if (vm.signingIn) "Signing in…" else "Sign in") }
+                AbsButton(onClick = { vm.cancelLogin() }) { Text("Cancel") }
+            }
+        }
+
+        LoginMode.REAUTH, LoginMode.FORGOT_PIN -> Column(Modifier.fillMaxSize().padding(start = 240.dp, end = 240.dp, top = 140.dp)) {
+            val forgot = mode == LoginMode.FORGOT_PIN
+            val name = prefill.displayName
+            LoginHeader(if (forgot) "FORGOT PIN" else "SIGN IN AGAIN", name) {
+                val badge = if (forgot) AvatarBadge.Pin else AvatarBadge.NeedsSignIn
+                if (who != null) ProfileAvatar(who, 64.dp, badge = badge)
+                else AvatarCircle(name.firstOrNull()?.uppercase().orEmpty(), true, prefill.colorIndex, 64.dp, badge = badge)
+            }
+            val host = hostLabel(prefill.server)
+            val body = buildAnnotatedString {
+                if (!passwordOnly) {
+                    append(
+                        if (forgot) "Enter your Audiobookshelf username and password, then choose a new PIN."
+                        else "Your session on $host ended. Enter your username and password to keep listening.",
+                    )
+                } else {
+                    append(if (forgot) "Enter the Audiobookshelf password for " else "Your session on $host ended. Enter the password for ")
+                    withStyle(SpanStyle(color = c.onSurface, fontWeight = FontWeight.Medium)) { append(prefill.username) }
+                    append(if (forgot) ", then choose a new PIN." else " to keep listening.")
+                }
+            }
+            Text(body, fontSize = 15.sp, lineHeight = 22.sp, color = c.muted, modifier = Modifier.padding(top = 20.dp).width(480.dp))
+            Column(Modifier.padding(top = 16.dp).width(480.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                if (!passwordOnly) {
+                    OutlinedTextField(
+                        user, { user = it }, Modifier.fillMaxWidth().focusRequester(first), singleLine = true, colors = fieldColors(),
+                        label = { M3Text("Username") }, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                    )
+                    PasswordField()
+                } else {
+                    PasswordField(Modifier.focusRequester(first))
+                }
+            }
+            ErrorLine()
+            Row(Modifier.padding(top = if (vm.error != null) 12.dp else 22.dp).width(480.dp), verticalAlignment = Alignment.CenterVertically) {
+                AbsButton(onClick = { submit() }) {
+                    Text(if (vm.signingIn) (if (forgot) "Checking…" else "Signing in…") else if (forgot) "Continue" else "Sign in")
+                }
+                if (canCancel) {
+                    Spacer(Modifier.width(12.dp))
+                    AbsButton(onClick = { vm.cancelLogin() }) { Text("Cancel") }
+                }
+                if (!forgot && prefill.profileId != null) {
+                    Spacer(Modifier.weight(1f))
+                    GhostButton("Remove from this TV", ProfileIcons.personRemove, onClick = { confirmRemove = true })
+                }
+            }
         }
     }
+
+    val pid = prefill.profileId
+    if (confirmRemove && pid != null) ConfirmDialog(
+        who = who,
+        title = "Remove ${prefill.displayName} from this TV?",
+        body = "${prefill.displayName}’s sign-in will be removed from this TV. Listening progress stays saved on the server.",
+        confirmLabel = "Remove",
+        onConfirm = { confirmRemove = false; vm.requestRemoveProfile(pid) },
+        onCancel = { confirmRemove = false },
+    )
 }
 
 /** Serif section title followed by a short fading accent rule (decorative). */
@@ -198,33 +327,4 @@ fun formatTime(sec: Double): String {
     val m = (s % 3600) / 60
     val r = s % 60
     return if (h > 0) "%d:%02d:%02d".format(h, m, r) else "%d:%02d".format(m, r)
-}
-
-/**
- * Stand-in "Who's listening?" picker until the real one (ProfilesScreen) lands: one button per saved profile plus
- * Add profile. A PIN-protected profile can't be opened from here yet (no PIN entry UI).
- */
-@Composable
-fun ProfilesPlaceholder(vm: AppViewModel) {
-    val c = LocalAbsColors.current
-    val scope = androidx.compose.runtime.rememberCoroutineScope()
-    val first = remember { FocusRequester() }
-    LaunchedEffect(Unit) { runCatching { first.requestFocus() } }
-    Column(
-        Modifier.fillMaxSize().padding(horizontal = 240.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically),
-    ) {
-        Text("Who's listening?", fontFamily = FontFamily.Serif, fontSize = 32.sp, color = c.accent)
-        vm.profiles.forEachIndexed { i, p ->
-            AbsButton(
-                onClick = {
-                    scope.launch {
-                        if (vm.switchProfile(p.id) == SwitchResult.NeedsSignIn) vm.startReauth(p.id)
-                    }
-                },
-                modifier = if (i == 0) Modifier.focusRequester(first) else Modifier,
-            ) { Text(if (p.needsSignIn) "${p.displayName} (sign in again)" else p.displayName) }
-        }
-        AbsButton(onClick = { vm.startAddProfile() }) { Text("Add profile") }
-    }
 }

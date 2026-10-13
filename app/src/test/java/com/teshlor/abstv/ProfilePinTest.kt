@@ -117,17 +117,29 @@ class ProfilePinTest {
         assertEquals(SwitchResult.Switched, svc.gate(p.id, null))
     }
 
-    @Test fun passwordLoginForTheSameAccountClearsPinAndLockout() {
+    @Test fun passwordLoginForTheSameAccountKeepsThePinButEndsTheLockout() {
         val s = store(); val p = withProfile(s); val svc = service(s)
         svc.setPin(p.id, "1234")
         repeat(5) { svc.verify(p.id, "0000") }
         val again = s.upsertFromLogin("http://h:1", LoginResult("a2", "r2", "evan", "u1"), reauthId = p.id)
         assertEquals(p.id, again.id)
-        assertFalse(again.hasPin)
+        assertTrue(again.hasPin) // an ordinary sign-in again (expired session, Add profile) never drops the PIN
         assertEquals(0L, again.pinCooldownUntil)
-        assertEquals(SwitchResult.Switched, svc.gate(p.id, null))
-        assertTrue(svc.setPin(p.id, "5555")) // a new one can be set
-        assertNotEquals(null, s.get(p.id)!!.pinHash)
+        assertEquals(SwitchResult.NeedsPin, svc.gate(p.id, null))
+        assertEquals(SwitchResult.Switched, svc.gate(p.id, "1234"))
+    }
+
+    @Test fun forgotPinResetsTriesButKeepsTheOldPinUntilANewOneIsSet() {
+        val s = store(); val p = withProfile(s); val svc = service(s)
+        svc.setPin(p.id, "1234")
+        repeat(5) { svc.verify(p.id, "0000") }
+        assertTrue(svc.cooldownUntil(p.id) != null)
+        svc.resetAttempts(p.id)
+        assertEquals(null, svc.cooldownUntil(p.id))
+        assertEquals(0, s.get(p.id)!!.pinFailures)
+        assertEquals(SwitchResult.Switched, svc.verify(p.id, "1234")) // old PIN still works
+        assertTrue(svc.setPin(p.id, "5555"))
+        assertEquals(SwitchResult.Switched, svc.verify(p.id, "5555"))
     }
 
     @Test fun differentProfilesGetDifferentSalts() {

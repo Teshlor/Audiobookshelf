@@ -27,6 +27,12 @@ sealed interface Screen {
     data class CollectionBooks(val collection: BookCollection) : Screen { override val key get() = "collection:${collection.id}" }
     /** "Who's listening?" picker. */
     data object Profiles : Screen { override val key = "profiles" }
+    /** The PIN pad. The run it belongs to is [AppViewModel.pinTask]. */
+    data object Pin : Screen { override val key = "pin" }
+    /** "Opening {name}'s library..." (at least 600 ms), then Home. */
+    data class Switching(val profileId: String) : Screen { override val key = "switching" }
+    /** "Add a PIN?" straight after Add profile. */
+    data class AddPinOffer(val profileId: String) : Screen { override val key = "addpin" }
     data object Detail : Screen { override val key = "detail" }
     data object Player : Screen { override val key = "player" }
 }

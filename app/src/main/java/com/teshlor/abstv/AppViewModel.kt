@@ -15,8 +15,12 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+
+/** The Switching screen stays up at least this long so it never flickers. */
+const val SWITCH_MIN_MS = 600L
 
 class AppViewModel(app: Application) : AndroidViewModel(app) {
     // One "abs" file: device-wide keys (theme_override, last_server), the profile list, and per-profile `key@<profileId>` settings.
@@ -59,7 +63,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /** Bumped on sign-out, profile switch and library switch; Root keys saved screen state by it so scroll positions reset. */
     var stateEpoch by mutableStateOf(0); private set
     var api by mutableStateOf<AbsApi?>(null); private set
+    /** Home / library loads (and Settings > Refresh). Sign-in has its own flag so the two can't clear each other's spinner. */
     var loading by mutableStateOf(false); private set
+    /** A sign-in request is running (the Login button label). */
+    var signingIn by mutableStateOf(false); private set
     var error by mutableStateOf<String?>(null); private set
 
     var libraries by mutableStateOf<List<Library>>(emptyList()); private set
@@ -143,10 +150,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /** Drops everything that belongs to the open profile. Does not touch the stack or the stored profiles. */
     private fun resetSessionState() {
         loginJob?.cancel()
+        switchJob?.cancel()
         player.stop()
         sessionScope.cancel()
         sessionScope = newSessionScope()
         loading = false
+        signingIn = false
+        pinTask = null; pinPending = null
         api = null
         currentProfileId = null
         username = ""
@@ -202,21 +212,47 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** The profile whose library is open (Settings header, rail row), or null on the picker. */
+    val currentProfile: ProfileSummary? get() = profiles.firstOrNull { it.isCurrent }
+
     /**
-     * Switches to profile [id]. A PIN-protected profile needs the right [pin] (see [SwitchResult]). On NeedsSignIn nothing
-     * changes: call [startReauth]. Switching to the profile that is already open is a no-op Switched.
+     * Someone was picked (picker tile, rail list). Expired -> Sign in again (no PIN first, the PIN stays set); PIN ->
+     * the PIN screen; otherwise straight to the Switching screen. Picking the open profile does nothing.
      */
-    suspend fun switchProfile(id: String, pin: String? = null): SwitchResult {
-        if (id == currentProfileId && api != null) return SwitchResult.Switched
-        val r = withContext(Dispatchers.Default) { pins.gate(id, pin) } // PBKDF2 stays off the main thread
-        if (r == SwitchResult.Switched) {
-            val p = profileStore.get(id)
-            if (p == null || p.needsSignIn) return SwitchResult.NeedsSignIn
-            enterProfile(p)
-        } else {
-            refreshProfiles() // attempts / cooldown changed
+    fun chooseProfile(id: String) {
+        val p = profileStore.get(id) ?: return
+        when {
+            p.needsSignIn -> startReauth(id)
+            id == currentProfileId && api != null -> Unit
+            p.hasPin -> startPinTask(PinTask(PinPurpose.SWITCH, id))
+            else -> openProfile(id)
         }
-        return r
+    }
+
+    private var switchJob: Job? = null
+
+    /**
+     * Shows the Switching screen for at least [SWITCH_MIN_MS] (so it never flickers), then opens [id]'s Home. Call only
+     * once the PIN (if any) is proven. A session that died in the meantime goes to Sign in again.
+     */
+    fun openProfile(id: String) {
+        val p = profileStore.get(id) ?: return
+        if (p.needsSignIn) { startReauth(id); return }
+        showScreenAfterReset(Screen.Switching(id))
+        refreshProfiles()
+        switchJob = viewModelScope.launch {
+            delay(SWITCH_MIN_MS)
+            val now = profileStore.get(id)
+            when {
+                now == null -> routeFromStorage()
+                now.needsSignIn -> {
+                    loginPrefill = loginPrefillFor(LoginMode.REAUTH, profileStore.all(), null, lastServer, id)
+                    error = null
+                    stack.reset(Screen.Login); stateEpoch++
+                }
+                else -> enterProfile(now)
+            }
+        }
     }
 
     /** Add profile: opens the sign-in form on top of the current screen (Cancel = [cancelLogin]). The open session is kept. */
@@ -233,14 +269,24 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         if (screen != Screen.Login) stack.push(Screen.Login)
     }
 
-    /** Cancel / Back on an ADD or REAUTH sign-in that was pushed over another screen. False when there is nothing to go back to. */
+    /**
+     * Cancel / Back on a sign-in. Pushed over another screen (Add profile, Sign in again from the picker or rail, Forgot
+     * PIN): pops back to it. A sign-in at the root (expired session) goes to the picker when others are saved. False when
+     * there is nowhere to go (the only profile).
+     */
     fun cancelLogin(): Boolean {
         if (screen != Screen.Login) return false
+        if (stack.size <= 1 && profileStore.all().size < 2) return false
         loginJob?.cancel() // a cancelled Add profile must not sign in afterwards
-        loading = false
+        signingIn = false
         error = null
-        if (!stack.pop()) return false
-        loginPrefill = LoginPrefill()
+        if (stack.size > 1) {
+            stack.pop()
+            loginPrefill = LoginPrefill()
+        } else {
+            authExpired = false
+            routeFromStorage()
+        }
         return true
     }
 
@@ -252,7 +298,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /** Removes [id] from this TV (also what "Remove from this TV" on the sign-in-again screen calls). */
     fun removeProfile(id: String) {
         val wasCurrent = id == currentProfileId
-        val onLogin = screen == Screen.Login
+        val onLogin = screen == Screen.Login || screen == Screen.Pin
         if (wasCurrent) resetSessionState()
         apis.remove(id)
         profileStore.remove(id)
@@ -279,12 +325,115 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         refreshProfiles()
     }
 
-    /** Optional 4-digit PIN for [id]. False if it isn't 4 digits. Not wired to any screen yet. */
-    fun setPin(id: String, pin: String): Boolean = pins.setPin(id, pin).also { refreshProfiles() }
-    fun clearPin(id: String) { pins.clearPin(id); refreshProfiles() }
+    // --- PIN screens ---
 
-    /** Wall-clock ms until which PIN entry for [id] is locked, or null. For the picker's countdown. */
+    /** The PIN run in progress (what the PIN screen shows); null when no PIN screen is up. */
+    var pinTask by mutableStateOf<PinTask?>(null); private set
+    private var pinPending: PinStepResult? = null
+
+    fun startPinTask(task: PinTask) {
+        pinTask = task
+        pinPending = null
+        stack.push(Screen.Pin)
+    }
+
+    /** Settings rows. They act on the open profile. */
+    fun startSetPin() { currentProfileId?.let { startPinTask(PinTask(PinPurpose.SET, it)) } }
+    fun startChangePin() { currentProfileId?.let { startPinTask(PinTask(PinPurpose.CHANGE, it)) } }
+    fun startRemovePin() { currentProfileId?.let { startPinTask(PinTask(PinPurpose.REMOVE_PIN, it)) } }
+
+    /** "Remove from this TV" on a sign-in-again screen: asks for the PIN first when the profile has one. */
+    fun requestRemoveProfile(id: String) {
+        if (profileStore.get(id)?.hasPin == true) startPinTask(PinTask(PinPurpose.REMOVE_PROFILE, id)) else removeProfile(id)
+    }
+
+    /** Wall-clock ms until which PIN entry for [id] is locked, or null. For the PIN screen's countdown. */
     fun pinCooldownUntil(id: String): Long? = pins.cooldownUntil(id)
+
+    /**
+     * Four digits came in on the PIN screen. Checks them (PBKDF2 off the main thread), saves a new PIN when the run
+     * finishes, and remembers what [pinStepDone] should do next. The screen shows the result first (shake, message or
+     * "PIN set"), then calls [pinStepDone].
+     */
+    suspend fun submitPin(pin: String): PinResult {
+        val task = pinTask ?: return PinResult.Wrong("")
+        val res: PinStepResult = when (task.step) {
+            PinStep.UNLOCK, PinStep.VERIFY -> when (val r = withContext(Dispatchers.Default) { pins.verify(task.profileId, pin) }) {
+                SwitchResult.Switched -> task.onVerified()
+                is SwitchResult.WrongPin -> { refreshProfiles(); return PinResult.Wrong(wrongPinMessage(r.attemptsLeft)) }
+                is SwitchResult.CoolingDown -> { refreshProfiles(); return PinResult.Cooldown(r.untilMs) }
+                else -> return PinResult.Wrong("")
+            }
+            PinStep.CHOOSE -> task.onChosen(pin)
+            PinStep.CONFIRM -> task.onConfirmed(pin)
+        }
+        if (res is PinStepResult.Done) {
+            when (val s = res.save) {
+                is PinSave.Set -> withContext(Dispatchers.Default) { pins.setPin(task.profileId, s.pin) }
+                PinSave.Clear -> pins.clearPin(task.profileId)
+                null -> Unit
+            }
+            refreshProfiles()
+        }
+        pinPending = res
+        return when {
+            res is PinStepResult.Next && res.task.notice != null -> PinResult.Mismatch
+            res is PinStepResult.Done -> PinResult.Accepted(res.text)
+            else -> PinResult.Accepted(null)
+        }
+    }
+
+    /** The PIN screen finished showing the result of [submitPin]: move to the next step or leave. */
+    fun pinStepDone() {
+        val task = pinTask ?: return
+        when (val res = pinPending ?: return) {
+            is PinStepResult.Next -> { pinTask = res.task; pinPending = null }
+            is PinStepResult.Done -> {
+                pinPending = null
+                when (res.nav) {
+                    PinNav.OPEN_PROFILE -> { pinTask = null; openProfile(task.profileId) }
+                    PinNav.REMOVE_PROFILE -> removeProfile(task.profileId)
+                    PinNav.BACK -> {
+                        pinTask = null
+                        stack.pop()
+                    }
+                }
+            }
+        }
+    }
+
+    /** Back on the PIN screen: CONFIRM -> CHOOSE, CHOOSE after Forgot PIN -> the old PIN prompt, otherwise leave. */
+    fun pinBack() {
+        val task = pinTask ?: return
+        pinPending = null
+        val prev = task.onBack()
+        if (prev != null) pinTask = prev
+        else { pinTask = null; stack.pop() }
+    }
+
+    /** "Remove PIN instead" after Forgot PIN. */
+    fun pinRemoveInstead(): PinResult {
+        val task = pinTask ?: return PinResult.Wrong("")
+        val res = task.onRemoveInstead()
+        pins.clearPin(task.profileId)
+        refreshProfiles()
+        pinPending = res
+        return PinResult.Accepted(res.text)
+    }
+
+    /** "Forgot PIN?": the account password for this profile, then a new PIN. */
+    fun startForgotPin() {
+        val task = pinTask ?: return
+        loginPrefill = loginPrefillFor(LoginMode.FORGOT_PIN, profileStore.all(), currentProfileId, lastServer, task.profileId)
+        error = null
+        stack.push(Screen.Login)
+    }
+
+    /** After Add profile created someone new: "Add a PIN?" ... */
+    fun addPinOfferAccept(id: String) = startPinTask(PinTask(PinPurpose.ADD_PROFILE, id))
+
+    /** ... or Skip / Back: on to the new profile. */
+    fun addPinOfferSkip(id: String) = openProfile(id)
 
     /** MainActivity.onStop (not a config change). [nowMs] = SystemClock.elapsedRealtime(). */
     fun onAppBackground(nowMs: Long) { backgroundedAt = nowMs }
@@ -320,28 +469,64 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** Signs in and opens that profile. A login for an account already on this TV refreshes it in place (and clears its PIN). */
     private var loginJob: Job? = null
 
+    /**
+     * Signs in. A login for an account already on this TV refreshes it in place and keeps its PIN. By mode: FIRST /
+     * REAUTH open that profile; ADD opens it too, after offering a PIN when the profile is new; FORGOT_PIN only proves
+     * the password and goes on to choosing a PIN.
+     */
     fun login(server: String, username: String, password: String) {
         loginJob?.cancel()
-        val reauthId = loginPrefill.takeIf { it.mode == LoginMode.REAUTH }?.profileId
+        val prefill = loginPrefill
+        val targetId = prefill.profileId.takeIf { prefill.mode == LoginMode.REAUTH || prefill.mode == LoginMode.FORGOT_PIN }
+        val before = profileStore.all().map { it.id }.toSet()
         // Not in sessionScope: entering the profile resets that scope. Cancelled by cancelLogin() and resetSessionState().
-        loginJob = viewModelScope.launch {
-            loading = true
+        val job = viewModelScope.launch {
+            signingIn = true
             error = null
             authExpired = false
             try {
                 val r = AbsApi(server).login(username, password)
-                val p = profileStore.upsertFromLogin(server, r, reauthId)
+                val p = profileStore.upsertFromLogin(server, r, targetId)
                 prefs.edit().putString(ProfileKeys.LAST_SERVER, p.server).apply()
-                enterProfile(p)
+                when {
+                    prefill.mode == LoginMode.FORGOT_PIN -> {
+                        if (p.id != targetId) throw IllegalStateException("That password belongs to a different account.")
+                        pins.resetAttempts(p.id)
+                        finishForgotPin()
+                    }
+                    prefill.mode == LoginMode.ADD && p.id !in before -> {
+                        // Someone new: offer a PIN before opening them (not for an account that was already here).
+                        signingIn = false
+                        loginPrefill = LoginPrefill()
+                        stack.reset(Screen.AddPinOffer(p.id)); stateEpoch++
+                        refreshProfiles()
+                    }
+                    else -> enterProfile(p)
+                }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                loading = false
-                error = e.message ?: e.toString()
+                if (shouldShowError(authExpired, e)) error = loginErrorMessage(prefill.mode, e)
+            } finally {
+                if (loginJob === coroutineContext[Job]) signingIn = false
             }
+        }
+        loginJob = job
+    }
+
+    /** Forgot PIN's password was accepted: pop the form and carry on with the PIN run. */
+    private fun finishForgotPin() {
+        val task = pinTask
+        loginPrefill = LoginPrefill()
+        signingIn = false
+        stack.pop() // the sign-in form
+        refreshProfiles()
+        if (task == null) return
+        when (val res = task.onPasswordAccepted()) {
+            is PinStepResult.Next -> pinTask = res.task
+            is PinStepResult.Done -> { pinPending = res; pinStepDone() }
         }
     }
 
